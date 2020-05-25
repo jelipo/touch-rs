@@ -1,7 +1,9 @@
 use std::collections::hash_map::RandomState;
 use std::collections::HashMap;
 
-pub struct Socks5Protocal {}
+pub struct Socks5Protocal {
+    pub a: u8
+}
 
 impl Socks5Protocal {
     //!
@@ -9,5 +11,9 @@ impl Socks5Protocal {
         return "hello".to_string();
     }
 
-    pub fn new() -> Socks5Protocal {}
+    pub fn new() -> Socks5Protocal {
+        return Socks5Protocal {
+            a: 9
+        };
+    }
 }

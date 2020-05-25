@@ -1,17 +1,13 @@
-use std::collections::HashMap;
-use std::env::var;
-use std::time::SystemTime;
-
-use crate::net::protocol::Socks5Protocal;
-use std::borrow::Borrow;
+use tokio::net::TcpStream;
+use tokio::prelude::io::AsyncWriteExt;
 
 mod net;
 
-fn main() {
-    let i = 1;
-    let map = HashMap::new();
-    let protocal = Socks5Protocal::new();
+#[tokio::main]
+async fn main() {
+    let mut stream = TcpStream::connect("127.0.0.1:6142").await.unwrap();
+    println!("created stream");
 
-    let string = Socks5Protocal::socks5_test();
-    println!("Hello world!")
+    let result = stream.write(b"hello world\n").await;
+    println!("wrote to stream; success={:?}", result.is_ok());
 }
