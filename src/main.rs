@@ -3,7 +3,7 @@ use async_std::net::{TcpListener, TcpStream};
 use async_std::prelude::*;
 use async_std::task;
 
-use crate::socks::socks5::{Connect, Socks5};
+use crate::socks::socks5::Socks5;
 
 mod socks;
 
@@ -17,8 +17,8 @@ fn main() -> io::Result<()> {
         while let Some(stream) = incoming.next().await {
             let stream = stream.unwrap();
             task::spawn(async move {
-                let socks5 = Socks5::new(stream);
-                socks5.connect();
+                let socks5 = Socks5::new(&stream);
+                let x = socks5.connect().await;
             });
         }
         Ok(())
