@@ -1,7 +1,8 @@
 pub struct AddressHeader {
     pub socks_version: SocksVersion,
     pub cmd: Command,
-    pub address_type:,
+    pub address_type: AddressType,
+    pub address: String,
 }
 
 pub enum Command {
@@ -19,7 +20,7 @@ impl Command {
             1 => Command::Connect,
             2 => Command::Bind,
             3 => Command::UdpAssociate,
-            _ => {}
+            _ => Command::Connect
         }
     }
 }
@@ -35,7 +36,7 @@ impl SocksVersion {
         match version {
             5 => SocksVersion::V5,
             4 => SocksVersion::V4,
-            _ => {}
+            _ => SocksVersion::V5
         }
     }
 }
@@ -56,7 +57,7 @@ impl AddressType {
             1 => AddressType::IPv4,
             3 => AddressType::Domain,
             4 => AddressType::IPv6,
-            _ => {}
+            _ => AddressType::IPv4
         }
     }
 }
