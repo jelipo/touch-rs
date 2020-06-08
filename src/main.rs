@@ -1,5 +1,5 @@
 use async_std::io;
-use async_std::net::{TcpListener, TcpStream};
+use async_std::net::{TcpListener, TcpStream, Ipv4Addr, IpAddr};
 use async_std::prelude::*;
 use async_std::task;
 
@@ -9,15 +9,15 @@ mod socks;
 
 fn main() -> io::Result<()> {
     task::block_on(async {
-        let listener = TcpListener::bind("127.0.0.1:18081").await.unwrap();
+        let listener = TcpListener::bind("127.0.0.1:10801").await.unwrap();
         println!("Listening on {}", listener.local_addr().unwrap());
 
         let mut incoming = listener.incoming();
 
         while let Some(stream) = incoming.next().await {
-            let stream = stream.unwrap();
+            let mut stream = stream.unwrap();
             task::spawn(async move {
-                let socks5 = Socks5::new(&stream);
+                let mut socks5 = Socks5::new(stream);
                 let x = socks5.connect().await;
             });
         }
