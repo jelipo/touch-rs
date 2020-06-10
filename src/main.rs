@@ -1,4 +1,5 @@
 use async_std::io;
+use async_std::io::Cursor;
 use async_std::net::{TcpListener, TcpStream};
 use async_std::prelude::*;
 use async_std::task;
@@ -15,28 +16,54 @@ fn main() -> io::Result<()> {
         let mut incoming = listener.incoming();
 
         while let Some(stream) = incoming.next().await {
-            let mut stream = stream.unwrap();
+            let mut client_stream = stream.unwrap();
             task::spawn(async move {
-                let mut socks5 = Socks5::new(stream);
-                let x = socks5.connect().await;
+                let mut socks5 = Socks5::new(&mut client_stream);
+                match socks5.connect().await {
+                    Some(remote_stream) => {
+                        proxy(&mut client_stream, &remote_stream).await
+                    }
+                    _ => {}
+                }
+                println!("结束")
             });
         }
         Ok(())
     })
 }
 
-async fn process(stream: TcpStream) -> io::Result<()> {
-    println!("Accepted from: {}", stream.peer_addr().unwrap());
+async fn proxy(client_stream: &mut TcpStream, remote_stream: &TcpStream) {
 
-    let mut reader = stream.clone();
-    let mut writer = stream;
-    println!("{:?}", std::thread::current().id());
-    let mut arr = [0u8; 4];
-    while let read = reader.read(&mut arr).await {
-        let i = read.unwrap();
-        if i == 0 { break; }
-        println!("{:?}", arr);
+    let mut client_read = client_stream.clone();
+    let mut client_write = client_stream.clone();
+    let mut remote_read = remote_stream.clone();
+    let mut remote_write = remote_stream.clone();
+    loop {
+
     }
-    println!("{:?}", "你好".as_bytes());
-    Ok(())
+    let handle1 = task::spawn(async move {
+        io::copy(&mut client_read, &mut remote_write).await
+    });
+    let handle2 = task::spawn(async move {
+        io::copy(&mut remote_read, &mut client_write).await
+    });
+    let result1 = handle1.await;
+    match result1 {
+        Ok(re) => {
+            println!("{}", re)
+        }
+        Err(e) => {
+            eprintln!(" {}", e);
+        }
+    }
+
+    let result2 = handle2.await;
+    match result2 {
+        Ok(re) => {
+            println!("1 {}", re)
+        }
+        Err(e) => {
+            eprintln!("2 {}", e);
+        }
+    }
 }

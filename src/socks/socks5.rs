@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use async_std::net::{Ipv4Addr, TcpStream};
 use async_std::prelude::*;
 
@@ -5,13 +7,13 @@ use crate::socks::consts::{AddressHeader, AddressType, Command, SocksVersion};
 
 const SOCKS5_SUPPORT: [u8; 2] = [5, 0];
 
-pub struct Socks5 {
-    tcp_stream: TcpStream
+pub struct Socks5<'a> {
+    tcp_stream: &'a mut TcpStream
 }
 
-impl Socks5 {
-    pub fn new(tcp: TcpStream) -> Socks5 {
-        Socks5 { tcp_stream: tcp }
+impl<'a> Socks5<'a> {
+    pub fn new(tcp: &'a mut TcpStream) -> Self {
+        Self { tcp_stream: tcp }
     }
 
     fn check_head(socks5_head: Vec<u8>) -> (bool, u8) {
@@ -19,19 +21,21 @@ impl Socks5 {
             println!("不支持的socks5协议版本");
             return (false, 0u8);
         }
+
         return (true, socks5_head[1]);
     }
 
-    pub async fn connect(&mut self) {
-        self.start_connect();
+    pub async fn connect(&mut self) -> Option<TcpStream> {
+        return self.start_connect().await;
     }
 
-    async fn start_connect(&mut self) -> bool {
+    /// 检验协议头并建立连接的主要方法
+    async fn start_connect(&mut self) -> Option<TcpStream> {
         let mut head = vec![0u8; 2];
         let read = self.tcp_stream.read(&mut head);
-        if read.await.unwrap() == 0 { return false; }
+        if read.await.unwrap() == 0 { return None; }
         let check_result = Socks5::check_head(head);
-        if !check_result.0 { return false; }
+        if !check_result.0 { return None; }
         //read client methods
         let method_size = check_result.1;
         let mut first_method_arr = vec![0u8; method_size as usize];
@@ -41,18 +45,20 @@ impl Socks5 {
         //write server methods
         if !self.write_server_methods().await {
             println!("方法发送失败");
-            return false;
+            return None;
         }
         let address_header = self.read_address().await;
-        return true;
+        let remote_tcp_stream = self.connect_remote(
+            &address_header.address, &address_header.port).await;
+        self.write_server_success(&address_header).await;
+        return Option::Some(remote_tcp_stream);
     }
 
     /// 向client端写入server端支持的方法
     /// 当发送完成时返回true，反之false
     async fn write_server_methods(&mut self) -> bool {
-        let mut writer = &self.tcp_stream;
         let server_mthod = SOCKS5_SUPPORT;
-        let write = writer.write(&server_mthod);
+        let write = self.tcp_stream.write(&server_mthod);
         return write.await.unwrap() != 0;
     }
 
@@ -71,6 +77,7 @@ impl Socks5 {
             cmd: Command::with_byte(address_head[1]),
             address_type,
             address: address.unwrap(),
+            port: self.read_port().await,
         };
     }
 
@@ -90,5 +97,41 @@ impl Socks5 {
         let mut domain_addr = vec![0u8; length as usize];
         let end = self.tcp_stream.read(&mut domain_addr).await;
         return String::from_utf8(domain_addr).ok();
+    }
+
+    /// 从TCP流中读取端口号
+    async fn read_port(&mut self) -> u16 {
+        let mut length_arr = [0u8; 2];
+        let read = self.tcp_stream.read(&mut length_arr).await;
+        return u16::from_be_bytes(length_arr);
+    }
+
+    /// 从TCP流中读取端口号
+    async fn write_server_success(&mut self, address_header: &AddressHeader) {
+        let mut server_arr = vec![];
+        server_arr.push(0x5);
+        server_arr.push(0x0);
+        server_arr.push(0x0);
+        server_arr.push(0x1);
+        if AddressType::IPv4 == address_header.address_type {
+            let mut address_vec = Ipv4Addr::from_str(address_header.address.as_str())
+                .unwrap().octets().to_vec();
+            server_arr.append(&mut address_vec);
+        } else {
+            let mut address_vec = address_header.address.as_bytes().to_vec();
+            server_arr.push(address_vec.len() as u8);
+            server_arr.append(&mut address_vec);
+        }
+        let port = address_header.port.to_be_bytes();
+        server_arr.push(port[0]);
+        server_arr.push(port[1]);
+        println!("{:?}", server_arr);
+        let read = self.tcp_stream.write(&mut server_arr).await;
+    }
+
+    async fn connect_remote(&mut self, host: &String, port: &u16) -> TcpStream {
+        let address = host.to_string() + ":" + port.to_string().as_ref();
+        let address_str = address.as_str();
+        return TcpStream::connect(address_str).await.unwrap();
     }
 }

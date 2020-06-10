@@ -3,6 +3,7 @@ pub struct AddressHeader {
     pub cmd: Command,
     pub address_type: AddressType,
     pub address: String,
+    pub port: u16,
 }
 
 pub enum Command {
@@ -41,7 +42,7 @@ impl SocksVersion {
     }
 }
 
-
+#[derive(Debug, PartialEq)]
 pub enum AddressType {
     //0x01
     IPv4,
