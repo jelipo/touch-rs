@@ -53,12 +53,12 @@ pub enum AddressType {
 }
 
 impl AddressType {
-    pub fn with_byte(address_type: u8) -> AddressType {
+    pub fn with_byte(address_type: u8) -> Option<AddressType> {
         match address_type {
-            1 => AddressType::IPv4,
-            3 => AddressType::Domain,
-            4 => AddressType::IPv6,
-            _ => AddressType::IPv4
+            1 => Some(AddressType::IPv4),
+            3 => Some(AddressType::Domain),
+            4 => Some(AddressType::IPv6),
+            _ => None
         }
     }
 }

@@ -1,6 +1,7 @@
+use std::error::Error;
 use std::str::FromStr;
 
-use async_std::net::{Ipv4Addr, TcpStream};
+use async_std::net::{Ipv4Addr, SocketAddr, TcpStream};
 use async_std::prelude::*;
 
 use crate::socks::consts::{AddressHeader, AddressType, Command, SocksVersion};
@@ -41,17 +42,23 @@ impl<'a> Socks5<'a> {
         let mut first_method_arr = vec![0u8; method_size as usize];
         let end = self.tcp_stream.read(&mut first_method_arr).await;
         let i = end.unwrap();
-        println!("收到方法：{:?}", first_method_arr);
         //write server methods
         if !self.write_server_methods().await {
             println!("方法发送失败");
             return None;
         }
         let address_header = self.read_address().await;
-        let remote_tcp_stream = self.connect_remote(
-            &address_header.address, &address_header.port).await;
-        self.write_server_success(&address_header).await;
-        return Option::Some(remote_tcp_stream);
+        match let remote_stream = address_header.cmd {
+            Command::Connect => {
+                 self.connect_tcp_remote(
+                    &address_header.address, &address_header.port).await;
+            }
+            _ => { Err("") }
+        };
+        let remote_tcp_stream =
+        let local_addr = remote_tcp_stream.local_addr().unwrap();
+        self.write_connect_success(&address_header, local_addr).await;
+        return Option::Some(remote_tcp_stream.unwrap());
     }
 
     /// 向client端写入server端支持的方法
@@ -66,7 +73,9 @@ impl<'a> Socks5<'a> {
     async fn read_address(&mut self) -> AddressHeader {
         let mut address_head = [0u8; 4];
         let end = self.tcp_stream.read(&mut address_head).await;
-        let address_type = AddressType::with_byte(address_head[3]);
+        let address_type_byte = address_head[3];
+        let address_type = AddressType::with_byte(address_type_byte)
+            .expect("未知的类型");
         let address = match address_type {
             AddressType::IPv4 => self.read_ipv4_address().await,
             AddressType::Domain => self.read_domain_address().await,
@@ -106,32 +115,18 @@ impl<'a> Socks5<'a> {
         return u16::from_be_bytes(length_arr);
     }
 
-    /// 从TCP流中读取端口号
-    async fn write_server_success(&mut self, address_header: &AddressHeader) {
-        let mut server_arr = vec![];
-        server_arr.push(0x5);
-        server_arr.push(0x0);
-        server_arr.push(0x0);
-        server_arr.push(0x1);
-        if AddressType::IPv4 == address_header.address_type {
-            let mut address_vec = Ipv4Addr::from_str(address_header.address.as_str())
-                .unwrap().octets().to_vec();
-            server_arr.append(&mut address_vec);
-        } else {
-            let mut address_vec = address_header.address.as_bytes().to_vec();
-            server_arr.push(address_vec.len() as u8);
-            server_arr.append(&mut address_vec);
-        }
-        let port = address_header.port.to_be_bytes();
-        server_arr.push(port[0]);
-        server_arr.push(port[1]);
-        println!("{:?}", server_arr);
-        let read = self.tcp_stream.write(&mut server_arr).await;
+    /// 向客户端写入连接成功的消息
+    async fn write_connect_success(&mut self, local_addr: SocketAddr) {
+        let mut head: [u8; 9] = [5, 0, 0, 1, 4, 0, 0, 0, 0];
+        self.tcp_stream.write(&mut head).await;
+        let mut port_vec = local_addr.port().to_be_bytes().to_vec();
+        self.tcp_stream.write(&mut port_vec).await;
     }
 
-    async fn connect_remote(&mut self, host: &String, port: &u16) -> TcpStream {
+    async fn connect_tcp_remote(&mut self, host: &String, port: &u16) -> Result<TcpStream> {
         let address = host.to_string() + ":" + port.to_string().as_ref();
         let address_str = address.as_str();
-        return TcpStream::connect(address_str).await.unwrap();
+        println!("host {}", address_str);
+        return TcpStream::connect(address_str).await;
     }
 }
