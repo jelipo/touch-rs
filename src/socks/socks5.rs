@@ -1,7 +1,9 @@
 use std::error::Error;
 use std::str::FromStr;
 
-use async_std::net::{Ipv4Addr, SocketAddr, TcpStream};
+use async_std::io;
+use async_std::io::ErrorKind;
+use async_std::net::{Ipv4Addr, SocketAddr, TcpStream, UdpSocket};
 use async_std::prelude::*;
 
 use crate::socks::consts::{AddressHeader, AddressType, Command, SocksVersion};
@@ -48,17 +50,16 @@ impl<'a> Socks5<'a> {
             return None;
         }
         let address_header = self.read_address().await;
-        match let remote_stream = address_header.cmd {
-            Command::Connect => {
-                 self.connect_tcp_remote(
-                    &address_header.address, &address_header.port).await;
-            }
-            _ => { Err("") }
+        let remote_stream = match address_header.cmd {
+            Command::Connect => self.connect_tcp_remote(
+                &address_header.address, &address_header.port).await,
+            Command::Bind => Result::Err(
+                io::Error::new(ErrorKind::InvalidInput, "暂不支持BIND方法")),
+            Command::UdpAssociate => Err(ErrorKind::InvalidInput)
         };
-        let remote_tcp_stream =
-        let local_addr = remote_tcp_stream.local_addr().unwrap();
-        self.write_connect_success(&address_header, local_addr).await;
-        return Option::Some(remote_tcp_stream.unwrap());
+        let local_addr = remote_stream.local_addr().unwrap();
+        self.write_connect_success(local_addr).await;
+        return Option::Some(remote_stream.unwrap());
     }
 
     /// 向client端写入server端支持的方法
@@ -123,10 +124,17 @@ impl<'a> Socks5<'a> {
         self.tcp_stream.write(&mut port_vec).await;
     }
 
-    async fn connect_tcp_remote(&mut self, host: &String, port: &u16) -> Result<TcpStream> {
+    async fn connect_tcp_remote(&mut self, host: &String, port: &u16) -> io::Result<TcpStream> {
         let address = host.to_string() + ":" + port.to_string().as_ref();
         let address_str = address.as_str();
         println!("host {}", address_str);
         return TcpStream::connect(address_str).await;
+    }
+
+    async fn connect_udp_remote(&mut self, host: &String, port: &u16) -> io::Result<TcpStream> {
+        let address = host.to_string() + ":" + port.to_string().as_ref();
+        let address_str = address.as_str();
+        println!("host {}", address_str);
+        UdpSocket::connect(address_str).await.let
     }
 }
