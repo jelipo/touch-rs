@@ -1,3 +1,8 @@
+use std::io;
+use std::io::Error;
+
+use async_std::io::ErrorKind;
+
 pub struct AddressHeader {
     pub socks_version: SocksVersion,
     pub cmd: Command,
@@ -53,12 +58,12 @@ pub enum AddressType {
 }
 
 impl AddressType {
-    pub fn with_byte(address_type: u8) -> Option<AddressType> {
+    pub fn with_byte(address_type: u8) -> io::Result<AddressType> {
         match address_type {
-            1 => Some(AddressType::IPv4),
-            3 => Some(AddressType::Domain),
-            4 => Some(AddressType::IPv6),
-            _ => None
+            1 => Ok(AddressType::IPv4),
+            3 => Ok(AddressType::Domain),
+            4 => Ok(AddressType::IPv6),
+            _ => Err(Error::new(ErrorKind::InvalidInput, "暂不支持BIND方法"))
         }
     }
 }

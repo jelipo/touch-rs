@@ -1,13 +1,11 @@
-use std::str;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use async_std::io;
-use async_std::io::Cursor;
 use async_std::net::{Shutdown, TcpListener, TcpStream};
 use async_std::prelude::*;
 use async_std::task;
 
-use crate::socks::socks5::Socks5;
+use crate::socks::socks5_connector::{ Socks5Connector};
 
 mod socks;
 
@@ -23,14 +21,16 @@ fn main() -> io::Result<()> {
             task::spawn(async move {
                 let id = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
                 println!("开始创建连接{}", id);
-                let mut socks5 = Socks5::new(&mut client_stream);
+                let mut socks5 = Socks5Connector::new(&mut client_stream);
                 match socks5.connect().await {
-                    Some(mut remote_stream) => {
+                    Ok(mut remote_stream) => {
                         proxy(&mut client_stream, &mut remote_stream, id).await
                     }
-                    _ => {}
+                    Err(err) => {
+                        eprintln!("创建连接失败,异常信息:{}", err);
+                    }
                 }
-                println!("all结束")
+                println!("此连接生命周期结束")
             });
         }
         Ok(())
@@ -45,7 +45,7 @@ async fn proxy(client_stream: &mut TcpStream, remote_stream: &mut TcpStream, id:
     let handle1 = task::spawn(async move {
         match io::copy(&mut client_read, &mut remote_write).await {
             Ok(size) => {
-                println!("client收到:{} {}", size, id);
+                println!("从client收到:{} byte {}", size, id);
             }
             _ => {}
         };
@@ -55,7 +55,7 @@ async fn proxy(client_stream: &mut TcpStream, remote_stream: &mut TcpStream, id:
     let handle2 = task::spawn(async move {
         match io::copy(&mut remote_read, &mut client_write).await {
             Ok(size) => {
-                println!("remote收到:{} {}", size, id);
+                println!("从remote收到:{} byte {}", size, id);
             }
             _ => {}
         }
@@ -65,5 +65,4 @@ async fn proxy(client_stream: &mut TcpStream, remote_stream: &mut TcpStream, id:
     handle2.await;
     client_stream.shutdown(Shutdown::Both);
     handle1.await;
-    println!("结束2");
 }
