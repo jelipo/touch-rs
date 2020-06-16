@@ -5,7 +5,7 @@ use async_std::net::{Shutdown, TcpListener, TcpStream};
 use async_std::prelude::*;
 use async_std::task;
 
-use crate::socks::socks5_connector::{ Socks5Connector};
+use crate::socks::socks5_connector::Socks5Connector;
 
 mod socks;
 
@@ -13,13 +13,14 @@ fn main() -> io::Result<()> {
     task::block_on(async {
         let listener = TcpListener::bind("127.0.0.1:10801").await.unwrap();
         println!("Listening on {}", listener.local_addr().unwrap());
-
         let mut incoming = listener.incoming();
-
         while let Some(stream) = incoming.next().await {
             let mut client_stream = stream.unwrap();
             task::spawn(async move {
-                let id = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+                let id = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos();
                 println!("开始创建连接{}", id);
                 let mut socks5 = Socks5Connector::new(&mut client_stream);
                 match socks5.connect().await {

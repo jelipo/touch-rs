@@ -26,7 +26,7 @@ impl Command {
             1 => Command::Connect,
             2 => Command::Bind,
             3 => Command::UdpAssociate,
-            _ => Command::Connect
+            _ => Command::Connect,
         }
     }
 }
@@ -42,7 +42,7 @@ impl SocksVersion {
         match version {
             5 => SocksVersion::V5,
             4 => SocksVersion::V4,
-            _ => SocksVersion::V5
+            _ => SocksVersion::V5,
         }
     }
 }
@@ -63,8 +63,7 @@ impl AddressType {
             1 => Ok(AddressType::IPv4),
             3 => Ok(AddressType::Domain),
             4 => Ok(AddressType::IPv6),
-            _ => Err(Error::new(ErrorKind::InvalidInput, "暂不支持BIND方法"))
+            _ => Err(Error::new(ErrorKind::InvalidInput, "暂不支持BIND方法")),
         }
     }
 }
-
