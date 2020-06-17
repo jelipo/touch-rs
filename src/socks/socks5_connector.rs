@@ -81,7 +81,7 @@ impl<'a> Socks5Connector<'a> {
         };
         return Ok(AddressHeader {
             socks_version: SocksVersion::with_byte(address_head[0]),
-            cmd: Command::with_byte(address_head[1]),
+            cmd: Command::with_byte(address_head[1])?,
             address_type,
             address: address?,
             port: self.read_port().await,

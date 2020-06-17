@@ -6,6 +6,7 @@ use async_std::prelude::*;
 use async_std::task;
 
 use crate::socks::socks5_connector::Socks5Connector;
+use crate::socks::consts::SocksVersion;
 
 mod socks;
 

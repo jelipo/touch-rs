@@ -21,12 +21,12 @@ pub enum Command {
 }
 
 impl Command {
-    pub fn with_byte(cmd: u8) -> Command {
+    pub fn with_byte(cmd: u8) -> Result<Command, Error> {
         match cmd {
-            1 => Command::Connect,
-            2 => Command::Bind,
-            3 => Command::UdpAssociate,
-            _ => Command::Connect,
+            0x01 => Ok(Command::Connect),
+            0x02 => Ok(Command::Bind),
+            0x03 => Ok(Command::UdpAssociate),
+            _ => Err(Error::new(ErrorKind::InvalidInput, "暂不支持此方法")),
         }
     }
 }
@@ -40,8 +40,8 @@ pub enum SocksVersion {
 impl SocksVersion {
     pub fn with_byte(version: u8) -> SocksVersion {
         match version {
-            5 => SocksVersion::V5,
-            4 => SocksVersion::V4,
+            0x05 => SocksVersion::V5,
+            0x04 => SocksVersion::V4,
             _ => SocksVersion::V5,
         }
     }
@@ -60,9 +60,9 @@ pub enum AddressType {
 impl AddressType {
     pub fn with_byte(address_type: u8) -> io::Result<AddressType> {
         match address_type {
-            1 => Ok(AddressType::IPv4),
-            3 => Ok(AddressType::Domain),
-            4 => Ok(AddressType::IPv6),
+            0x01 => Ok(AddressType::IPv4),
+            0x03 => Ok(AddressType::Domain),
+            0x04 => Ok(AddressType::IPv6),
             _ => Err(Error::new(ErrorKind::InvalidInput, "暂不支持BIND方法")),
         }
     }
