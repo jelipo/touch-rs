@@ -17,8 +17,12 @@ impl<'a> Socks5Connector<'a> {
     }
 
     fn check_head(socks5_head: Vec<u8>) -> Result<u8> {
-        if socks5_head[0] != 5 {
-            return Err(Error::new(ErrorKind::ConnectionAborted, "不支持的socks5协议版本"));
+        let socks_version = socks5_head[0];
+        if socks_version != 5 {
+            return Err(Error::new(
+                ErrorKind::ConnectionAborted,
+                format!("Unsupport socks version:'{}", socks_version),
+            ));
         }
         return Ok(socks5_head[1]);
     }
@@ -42,17 +46,22 @@ impl<'a> Socks5Connector<'a> {
         }
         //write server methods
         if !self.write_server_methods().await? {
-            return Err(Error::new(ErrorKind::ConnectionAborted, "Method failed to send."));
+            return Err(Error::new(
+                ErrorKind::ConnectionAborted,
+                "Method failed to send.",
+            ));
         }
         let address_header = self.read_address().await?;
         let remote_stream = match address_header.cmd {
             Command::Connect => {
                 self.connect_tcp_remote(&address_header.address, &address_header.port).await?
             }
-            Command::Bind => return Err(Error::new(ErrorKind::InvalidInput, "Not support 'BIND'.")),
-            Command::UdpAssociate => return Err(Error::new(
-                ErrorKind::InvalidInput, "Not support 'UdpAssociate'.",
-            )),
+            Command::Bind => {
+                return Err(Error::new(ErrorKind::InvalidInput, "Not support 'BIND'."));
+            }
+            Command::UdpAssociate => {
+                return Err(Error::new(ErrorKind::InvalidInput, "Not support 'UdpAssociate'."));
+            }
         };
         let local_addr = remote_stream.local_addr()?;
         self.write_connect_success(local_addr).await;
@@ -90,7 +99,7 @@ impl<'a> Socks5Connector<'a> {
 
     /// 从TCP流中读取4个字节并返回为字符串
     async fn read_ipv4_address(&mut self) -> Result<String> {
-        let mut ip_arr = [0u8; 4];
+        let ip_arr = [0u8; 4];
         return Ok(Ipv4Addr::from(ip_arr).to_string());
     }
 
@@ -116,7 +125,7 @@ impl<'a> Socks5Connector<'a> {
     /// 从TCP流中读取端口号
     async fn read_port(&mut self) -> u16 {
         let mut length_arr = [0u8; 2];
-        self.tcp_stream.read(&mut length_arr).await;
+        let read = self.tcp_stream.read(&mut length_arr).await;
         return u16::from_be_bytes(length_arr);
     }
 

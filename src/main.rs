@@ -5,12 +5,14 @@ use async_std::net::{Shutdown, TcpListener, TcpStream};
 use async_std::prelude::*;
 use async_std::task;
 
-use crate::socks::socks5_connector::Socks5Connector;
 use crate::socks::consts::SocksVersion;
+use crate::socks::socks5_connector::Socks5Connector;
+use async_std::sync::Mutex;
 
 mod socks;
 
-fn main() -> io::Result<()> {
+#[async_std::main]
+async fn main() -> io::Result<()> {
     task::block_on(async {
         let listener = TcpListener::bind("127.0.0.1:10801").await.unwrap();
         println!("Listening on {}", listener.local_addr().unwrap());
@@ -67,4 +69,6 @@ async fn proxy(client_stream: &mut TcpStream, remote_stream: &mut TcpStream, id:
     handle2.await;
     client_stream.shutdown(Shutdown::Both);
     handle1.await;
+    let mutex = Mutex::new("1");
+    mutex.lock()
 }

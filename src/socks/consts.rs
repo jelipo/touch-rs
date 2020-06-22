@@ -31,7 +31,7 @@ impl Command {
     }
 }
 
-/// SOCKS的版本协议，本程序只实现SOCKS5
+/// SOCKS的版本协议，本程序只实现V5版本
 pub enum SocksVersion {
     V5,
     V4,
