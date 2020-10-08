@@ -1,0 +1,19 @@
+use openssl::aes::{aes_ige, AesKey};
+use openssl::symm::Mode;
+
+pub struct ShadowsocksConnector {}
+
+impl ShadowsocksConnector {
+    pub fn test(&self) {
+        let key = b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F";
+        let plaintext = b"\x12\x34\x56\x78\x90\x12\x34\x56\x12\x34\x56\x78\x90\x12\x34\x56";
+        let mut iv = *b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F\
+                \x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1A\x1B\x1C\x1D\x1E\x1F";
+
+        let key = AesKey::new_encrypt(key).unwrap();
+        let mut output = [0u8; 16];
+        aes_ige(plaintext, &mut output, &key, &mut iv, Mode::Encrypt);
+        assert_eq!(output, *b"\xa6\xad\x97\x4d\x5c\xea\x1d\x36\xd2\xf3\x67\x98\x09\x07\xed\x32");
+    }
+}
+

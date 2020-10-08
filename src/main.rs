@@ -1,44 +1,43 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use async_std::io;
 use async_std::net::{Shutdown, TcpListener, TcpStream};
 use async_std::prelude::*;
+use async_std::sync::Mutex;
 use async_std::task;
+use fantasy_util::time::system_time::SystemLocalTime;
 
 use crate::socks::consts::SocksVersion;
 use crate::socks::socks5_connector::Socks5Connector;
-use async_std::sync::Mutex;
 
 mod socks;
+mod ss;
 
-#[async_std::main]
-async fn main() -> io::Result<()> {
-    task::block_on(async {
-        let listener = TcpListener::bind("127.0.0.1:10801").await.unwrap();
-        println!("Listening on {}", listener.local_addr().unwrap());
-        let mut incoming = listener.incoming();
-        while let Some(stream) = incoming.next().await {
-            let mut client_stream = stream.unwrap();
-            task::spawn(async move {
-                let id = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_nanos();
-                println!("开始创建连接{}", id);
-                let mut socks5 = Socks5Connector::new(&mut client_stream);
-                match socks5.connect().await {
-                    Ok(mut remote_stream) => {
-                        proxy(&mut client_stream, &mut remote_stream, id).await
-                    }
-                    Err(err) => {
-                        eprintln!("创建连接失败,异常信息:{}", err);
-                    }
+
+fn main() {
+    task::block_on(start());
+}
+
+async fn start() -> io::Result<()> {
+    let listener = TcpListener::bind("127.0.0.1:10801").await.unwrap();
+    println!("Listening on {}", listener.local_addr().unwrap());
+    let mut incoming = listener.incoming();
+    while let Some(stream) = incoming.next().await {
+        let mut client_stream = stream.unwrap();
+        task::spawn(async move {
+            let id = SystemLocalTime::unix_nanos();
+            println!("开始创建连接{}", id);
+            let mut socks5 = Socks5Connector::new(&mut client_stream);
+            match socks5.connect().await {
+                Ok(mut remote_stream) => {
+                    proxy(&mut client_stream, &mut remote_stream, id).await
                 }
-                println!("此连接生命周期结束")
-            });
-        }
-        Ok(())
-    })
+                Err(err) => {
+                    eprintln!("创建连接失败,异常信息:{}", err);
+                }
+            }
+            println!("此连接生命周期结束")
+        });
+    }
+    Ok(())
 }
 
 async fn proxy(client_stream: &mut TcpStream, remote_stream: &mut TcpStream, id: u128) {
@@ -70,5 +69,5 @@ async fn proxy(client_stream: &mut TcpStream, remote_stream: &mut TcpStream, id:
     client_stream.shutdown(Shutdown::Both);
     handle1.await;
     let mutex = Mutex::new("1");
-    mutex.lock()
+    mutex.lock();
 }

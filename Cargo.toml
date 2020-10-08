@@ -1,10 +1,18 @@
 [package]
 name = "touch-rust"
 version = "0.1.0"
-authors = ["Jelipo <me@jelipo.com>"]
+authors = ["jelipo <me@jelipo.com>"]
 edition = "2018"
+description = "Touch the 'Internet'."
+license = "MIT"
+homepage = "https://github.com/jelipo/touch-rust"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-async-std = "1.6.2"
+async-std = "1.6.5"
+fantasy-util = "0.1.6"
+#aes = "0.5.0"
+#rustls = "0.18.1"
+#ring = "0.16.15"
+openssl = { version = "0.10.30", features = ["vendored"] }
