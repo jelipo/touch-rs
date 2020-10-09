@@ -15,4 +15,6 @@ fantasy-util = "0.1.6"
 #aes = "0.5.0"
 #rustls = "0.18.1"
 #ring = "0.16.15"
-openssl = { version = "0.10.30", features = ["vendored"] }
+#openssl = { version = "0.10.30", features = ["vendored"] }
+cfb-mode = "0.5.0"
+aes = "0.5.0"
