@@ -1,8 +1,11 @@
+use aes::{Aes128, Aes256};
 use async_std::io;
 use async_std::net::{Shutdown, TcpListener, TcpStream};
 use async_std::prelude::*;
 use async_std::sync::Mutex;
 use async_std::task;
+use cfb_mode::Cfb;
+use cfb_mode::stream_cipher::{NewStreamCipher, StreamCipher};
 use fantasy_util::time::system_time::SystemLocalTime;
 
 use crate::socks::consts::SocksVersion;
@@ -10,9 +13,14 @@ use crate::socks::socks5_connector::Socks5Connector;
 
 mod socks;
 mod ss;
+mod encrypt;
 
+type Aes256Cfb = Cfb<Aes256>;
 
 fn main() {
+
+
+    //
     task::block_on(start());
 }
 
