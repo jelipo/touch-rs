@@ -1,4 +1,4 @@
-use aes::{Aes128, Aes256};
+
 use async_std::io;
 use async_std::net::{Shutdown, TcpListener, TcpStream};
 use async_std::prelude::*;
@@ -15,7 +15,7 @@ mod socks;
 mod ss;
 mod encrypt;
 
-type Aes256Cfb = Cfb<Aes256>;
+
 
 fn main() {
 
@@ -31,7 +31,7 @@ async fn start() -> io::Result<()> {
     while let Some(stream) = incoming.next().await {
         let mut client_stream = stream.unwrap();
         task::spawn(async move {
-            let id = SystemLocalTime::unix_nanos();
+            let id = SystemLocalTime::unix_mills();
             println!("开始创建连接{}", id);
             let mut socks5 = Socks5Connector::new(&mut client_stream);
             match socks5.connect().await {
@@ -48,16 +48,14 @@ async fn start() -> io::Result<()> {
     Ok(())
 }
 
-async fn proxy(client_stream: &mut TcpStream, remote_stream: &mut TcpStream, id: u128) {
+async fn proxy(client_stream: &mut TcpStream, remote_stream: &mut TcpStream, id: u64) {
     let mut client_read = client_stream.clone();
     let mut client_write = client_stream.clone();
     let mut remote_read = remote_stream.clone();
     let mut remote_write = remote_stream.clone();
     let handle1 = task::spawn(async move {
         match io::copy(&mut client_read, &mut remote_write).await {
-            Ok(size) => {
-                println!("从client收到:{} byte {}", size, id);
-            }
+            Ok(size) => println!("从client收到:{} byte {}", size, id),
             _ => {}
         };
         client_read.shutdown(Shutdown::Both);
@@ -65,9 +63,7 @@ async fn proxy(client_stream: &mut TcpStream, remote_stream: &mut TcpStream, id:
     });
     let handle2 = task::spawn(async move {
         match io::copy(&mut remote_read, &mut client_write).await {
-            Ok(size) => {
-                println!("从remote收到:{} byte {}", size, id);
-            }
+            Ok(size) => println!("从remote收到:{} byte {}", size, id),
             _ => {}
         }
         client_write.shutdown(Shutdown::Both);

@@ -7,15 +7,15 @@ description = "Touch the 'Internet'."
 license = "MIT"
 homepage = "https://github.com/jelipo/touch-rust"
 
+
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 async-std = "1.6.5"
 fantasy-util = "0.1.6"
-#aes = "0.5.0"
-#rustls = "0.18.1"
-#ring = "0.16.15"
-#openssl = { version = "0.10.30", features = ["vendored"] }
 cfb-mode = "0.5.0"
-aes = "0.5.0"
+aes-gcm = "0.7.0"
+hkdf = "0.9.0"
+sha-1 = "0.9.1"
 base64 = "0.13.0"

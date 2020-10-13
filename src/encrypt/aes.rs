@@ -29,6 +29,6 @@ impl Aes256Cfb {
 
     /// 解密
     pub fn decrypt(&self) {
-        timed
+
     }
 }
