@@ -1,15 +1,14 @@
-use aes_gcm::aead::{Aead, NewAead, generic_array::GenericArray};
+use aes_gcm::aead::{Aead, generic_array::GenericArray, NewAead};
 use aes_gcm::Aes256Gcm;
 use hkdf::Hkdf;
 use sha1::Sha1;
 
+pub struct AeadAesGcm {}
 
-pub struct AesGcmAead {}
-
-impl AesGcmAead {
+impl AeadAesGcm {
     ///
-    pub fn new(key: &[u8; 32], iv: &[u8; 16]) -> Self {
-        AesGcmAead {}
+    pub fn new() -> Self {
+        AeadAesGcm {}
     }
 
 
@@ -27,9 +26,11 @@ impl AesGcmAead {
 
         let plaintext = cipher.decrypt(nonce, ciphertext.as_ref())
             .expect("decryption failure!"); // NOTE: handle this error to avoid panics!
-        Hkdf::<Sha1>::new(Some(&salt[..]), &ikm);
     }
 
     /// 解密
     pub fn decrypt(&self) {}
 }
+
+
+
