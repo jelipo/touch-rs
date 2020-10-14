@@ -22,7 +22,7 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let gcm = SsEncryptUtil::generate_sub_key();
+        //let gcm = SsEncryptUtil::generate_sub_key();
         assert_eq!(2 + 2, 4);
     }
 }

@@ -3,15 +3,11 @@ use aes_gcm::Aes256Gcm;
 use hkdf::Hkdf;
 use sha1::Sha1;
 
+use crate::encrypt::ss_aead::SsAead;
+
 pub struct AeadAesGcm {}
 
 impl AeadAesGcm {
-    ///
-    pub fn new() -> Self {
-        AeadAesGcm {}
-    }
-
-
     /// 加密
     pub fn encrypt(&self) {
         let key_arr = b"an example very very secret key.";
@@ -32,5 +28,27 @@ impl AeadAesGcm {
     pub fn decrypt(&self) {}
 }
 
+
+pub struct AeadAes256Gcm {
+    plain_key: Box<[u8]>
+}
+
+impl AeadAes256Gcm {
+    fn creat(plain_key: &str) -> AeadAes256Gcm {
+        AeadAes256Gcm {
+            plain_key: Box::new(().)
+        }
+    }
+}
+
+impl SsAead<[u8; 32]> for AeadAes256Gcm {
+    fn generate_sub_key(plain_key: &str, salt: &str) -> [u8; 32] {
+        let salt_arr = salt.as_bytes();
+        let hkdf = Hkdf::<Sha1>::new(Some(salt_arr), plain_key.as_bytes());
+        let mut subkey = [0u8; 32];
+        hkdf.expand(b"ss-subkey", &mut subkey).unwrap();
+        return subkey;
+    }
+}
 
 
