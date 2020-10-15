@@ -1,11 +1,8 @@
-
 use async_std::io;
 use async_std::net::{Shutdown, TcpListener, TcpStream};
 use async_std::prelude::*;
 use async_std::sync::Mutex;
 use async_std::task;
-use cfb_mode::Cfb;
-use cfb_mode::stream_cipher::{NewStreamCipher, StreamCipher};
 use fantasy_util::time::system_time::SystemLocalTime;
 
 use crate::socks::consts::SocksVersion;
@@ -16,12 +13,9 @@ mod ss;
 mod encrypt;
 
 
-
-fn main() {
-
-
+fn main() -> io::Result<()> {
     //
-    task::block_on(start());
+    task::block_on(start())
 }
 
 async fn start() -> io::Result<()> {
