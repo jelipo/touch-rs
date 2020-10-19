@@ -66,9 +66,7 @@ mod tests {
         let salt = b"11111111111111111111111111111111";
         let result = aes256gcm.generate_sub_key(salt);
         match result {
-            Ok(arr) => {
-                println!("subkey(base64):{}", base64::encode(arr));
-            }
+            Ok(arr) => { println!("subkey(base64):{}", base64::encode(arr)); }
             Err(err) => { assert!(false); }
         }
     }
