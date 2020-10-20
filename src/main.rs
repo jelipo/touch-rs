@@ -32,9 +32,7 @@ async fn start() -> io::Result<()> {
                 Ok(mut remote_stream) => {
                     proxy(&mut client_stream, &mut remote_stream, id).await
                 }
-                Err(err) => {
-                    eprintln!("创建连接失败,异常信息:{}", err);
-                }
+                Err(err) => eprintln!("创建连接失败,异常信息:{}", err)
             }
             println!("此连接生命周期结束")
         });
