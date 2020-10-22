@@ -8,7 +8,6 @@ license = "MIT"
 homepage = "https://github.com/jelipo/touch-rust"
 
 
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -19,3 +18,4 @@ aes-gcm = "0.7.0"
 hkdf = "0.9.0"
 sha-1 = "0.9.1"
 base64 = "0.13.0"
+hex = "0.4.2"
