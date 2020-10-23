@@ -4,12 +4,12 @@ use std::{fmt, result};
 use crate::encrypt::ss_aead::AeadError::InvalidSaltSize;
 
 pub trait SsAead<K> {
-    fn generate_sub_key(&self, salt_arr: &[u8]) -> Result<K>;
+    fn generate_sub_key(&self, salt_arr: &[u8]) -> Result<K,AeadError>;
 }
 
 
 ///----------------------------------AEAD_ERROR--------------------------------
-pub type Result<T> = result::Result<T, AeadError>;
+
 
 pub enum AeadError {
     InvalidLength(u8),
