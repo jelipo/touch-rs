@@ -2,13 +2,12 @@ use aes_gcm::{Aes256Gcm, Error};
 use aes_gcm::aead::{Aead, generic_array::GenericArray, NewAead};
 use aes_gcm::aes::block_cipher::BlockCipherMut;
 use hkdf::Hkdf;
-use ring::aead::{Aad, AES_256_GCM, BoundKey, Nonce, NonceSequence, OpeningKey, SealingKey, UnboundKey};
+use ring::aead::{Aad, AES_256_GCM, BoundKey, Nonce, NonceSequence, OpeningKey, UnboundKey};
 use ring::error::Unspecified;
 use sha1::Sha1;
 
 use crate::encrypt::ss_aead::{AeadError, SsAead};
 use crate::encrypt::ss_aead::AeadError::InvalidSaltSize;
-
 
 pub struct AeadAes256Gcm<'a> {
     plain_key: &'a [u8]
@@ -28,16 +27,6 @@ impl<'a> AeadAes256Gcm<'a> {
         let nonce = GenericArray::from_slice(nonce_arr);
         return cipher.encrypt(nonce, data)
             .expect("encryption failure!");
-    }
-
-    /// 加密
-    pub fn encrypt_ring(
-        &self, subkey: &[u8], nonce_arr: &[u8], data: &mut Vec<u8>,
-    ) {
-        let key_type = UnboundKey::new(&AES_256_GCM, subkey).unwrap();
-        let sequence = RingAeadNonceSequence::new();
-        let mut opening_key = SealingKey::new(key_type, sequence);
-        opening_key.seal_in_place_append_tag(Aad::empty(), data).unwrap();
     }
 
     /// 解密
@@ -61,26 +50,6 @@ impl<'a> SsAead<[u8; AES_256_SZIE]> for AeadAes256Gcm<'a> {
         let mut subkey = [0u8; AES_256_SZIE];
         hkdf.expand(SS_SUBKEY_STR, &mut subkey).unwrap();
         return Ok(subkey);
-    }
-}
-
-pub struct RingAeadNonceSequence {
-    nonce: [u8; 12],
-}
-
-impl RingAeadNonceSequence {
-    fn new() -> RingAeadNonceSequence {
-        RingAeadNonceSequence {
-            nonce: [0u8; 12],
-        }
-    }
-}
-
-impl NonceSequence for RingAeadNonceSequence {
-    fn advance(&mut self) -> Result<Nonce, Unspecified> {
-        let nonce = Nonce::assume_unique_for_key(self.nonce);
-        increase_nonce(&mut self.nonce);
-        Ok(nonce)
     }
 }
 
@@ -129,15 +98,5 @@ mod tests {
             }
             Err(e) => { println!("解密失败 {}", e); }
         }
-    }
-
-    #[test]
-    fn full() {
-        let aes256gcm = AeadAes256Gcm::creat(b"laocao");
-        let subkey = hex::decode(b"73ad7bbbbc640c845a150f67d058b279849370cd2c1f3c67c4dd6c869213e13a").unwrap();
-        let nonce_arr = hex::decode(b"a330a184fc245812f4820caa").unwrap();
-        let mut data = hex::decode(b"f0535fe211").unwrap();
-        let en_vec = aes256gcm.encrypt_ring(subkey.as_slice(), nonce_arr.as_slice(), &mut data);
-        println!("{}", hex::encode(data));
     }
 }
