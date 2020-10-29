@@ -1,4 +1,6 @@
 use hkdf::Hkdf;
+use md5::{Digest, Md5};
+use md5::digest::DynDigest;
 use ring::aead::{Aad, AES_256_GCM, BoundKey, Nonce, NonceSequence, OpeningKey, SealingKey, UnboundKey};
 use ring::error::Unspecified;
 use sha1::Sha1;
@@ -67,28 +69,39 @@ impl RingEn {
 
 #[cfg(test)]
 mod tests {
+    use md5::Md5;
     use ring::aead::Aad;
 
     use crate::encrypt::aead_aes_gcm::AeadAes256Gcm;
-    use crate::encrypt::ring_aes::RingEn;
+    use crate::encrypt::ring_aes::{legacy_derive_key, RingEn};
     use crate::encrypt::ss_aead::{AeadError, SsAead};
 
     #[test]
     fn full() {
         let aes256gcm = RingEn::new();
-        let salt: &[u8; 32] = &[153, 71, 45, 178, 62, 121, 54, 201, 254, 253, 99, 80, 146, 109, 34, 60, 199, 21, 220, 126, 223, 88, 157, 171, 165, 158, 87, 7, 240, 29, 48, 115];
-        let subkey = aes256gcm.generate_sub_key(salt, b"laocao").unwrap();
+        let salt: &[u8; 32] = &[153, 71, 45, 178, 62, 121, 54, 201, 254, 253, 99, 80, 146, 109, 34,
+            60, 199, 21, 220, 126, 223, 88, 157, 171, 165, 158, 87, 7, 240, 29, 48, 115];
+        let mut masterkey = legacy_derive_key(b"laocao");
+        println!("masterkey {:?}", masterkey);
+        let subkey = aes256gcm.generate_sub_key(salt, &mut masterkey).unwrap();
 
         let mut nonce_arr = [0u8; 12];
         let mut data_arr: [u8; 18] = [240, 217, 236, 53, 227, 253, 8, 89, 158, 112, 11, 246, 109, 28, 30, 86, 92, 19];
         let mut data = Vec::from(data_arr);
-
-        //
-        // let en_vec = aes256gcm.encrypt_ring(subkey, nonce_arr, &mut data);
-        // println!("{}", hex::encode(&data));
-
-
-        let x = aes256gcm.decrypt_ring(&subkey, nonce_arr, &mut data_arr);
+        let ss_len_arr = aes256gcm.decrypt_ring(&subkey, nonce_arr, &mut data_arr);
         println!("{:?}", hex::encode(x));
     }
+}
+
+fn legacy_derive_key(password: &[u8]) -> Vec<u8> {
+    let md5_1 = Md5::digest(password);
+    let mut md5_2_plain = Vec::new();
+    md5_2_plain.append(&mut md5_1.to_vec());
+    md5_2_plain.append(&mut password.to_vec());
+    let x = md5_2_plain.as_slice();
+    let md5_2 = Md5::digest(x);
+    let mut master_key = Vec::new();
+    master_key.append(&mut md5_1.to_vec());
+    master_key.append(&mut md5_2.to_vec());
+    return master_key;
 }
