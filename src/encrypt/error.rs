@@ -1,5 +1,8 @@
-use std::fmt;
+use std::{fmt, result};
+
 use crate::encrypt::error::EncryptError::InvalidSaltSize;
+
+pub type Result<T> = result::Result<T, EncryptError>;
 
 /// Errors about encrypt
 pub enum EncryptError {

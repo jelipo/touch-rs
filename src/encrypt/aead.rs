@@ -7,17 +7,17 @@ use chacha20poly1305::ChaCha20Poly1305;
 
 use crate::encrypt::aead::EncryptError::InvalidSaltSize;
 use crate::encrypt::error::EncryptError;
+use crate::encrypt::error::Result;
 
 trait AeadEncrypt {
     fn new(key: &[u8]) -> Self;
 
-    /// 加密
-    fn encrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>, EncryptError>;
+    /// Aead Encrypt
+    fn encrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>>;
 
-    /// 解密
-    fn decrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>, EncryptError>;
+    /// Aead Decrypt
+    fn decrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>>;
 }
-
 
 //------------------------------------AEAD_AES_256_GCM-----------------------------------------
 pub struct AeadAes256Gcm {
@@ -30,15 +30,14 @@ impl AeadEncrypt for AeadAes256Gcm {
         AeadAes256Gcm { cipher: Aes256Gcm::new(generic_arr) }
     }
 
-    fn encrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>, EncryptError> {
-        aead_encrypt(self, nonce, data)
+    fn encrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+        aead_encrypt(&self.cipher, nonce, data)
     }
 
-    fn decrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>, EncryptError> {
-        aead_decrypt(self, nonce, data)
+    fn decrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+        aead_decrypt(&self.cipher, nonce, data)
     }
 }
-
 
 //-------------------------------------AEAD_AES_128_GCM-----------------------------------------
 pub struct AeadAes128Gcm {
@@ -51,12 +50,12 @@ impl AeadEncrypt for AeadAes128Gcm {
         AeadAes128Gcm { cipher: Aes128Gcm::new(generic_arr) }
     }
 
-    fn encrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>, EncryptError> {
-        aead_encrypt(self, nonce, data)
+    fn encrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+        aead_encrypt(&self.cipher, nonce, data)
     }
 
-    fn decrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>, EncryptError> {
-        aead_decrypt(self, nonce, data)
+    fn decrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+        aead_decrypt(&self.cipher, nonce, data)
     }
 }
 
@@ -71,25 +70,30 @@ impl AeadEncrypt for AeadChacha20Poly1305 {
         AeadChacha20Poly1305 { cipher: ChaCha20Poly1305::new(generic_arr) }
     }
 
-    fn encrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>, EncryptError> {
-        aead_encrypt(self, nonce, data)
+    fn encrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+        aead_encrypt(&self.cipher, nonce, data)
     }
 
-    fn decrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>, EncryptError> {
-        aead_decrypt(self, nonce, data)
+    fn decrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+        aead_decrypt(&self.cipher, nonce, data)
     }
 }
 
-fn aead_encrypt<T: Aead>(cipher: T, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>, EncryptError> {
+//--------------------------------------------------------------------------------------------
+
+/// Aead Encrypt
+fn aead_encrypt<T: Aead>(cipher: &T, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>> {
     let nonce = GenericArray::from_slice(nonce);
     cipher.encrypt(nonce, data).or(Err(EncryptError::EncryptErr))
 }
 
-fn aead_decrypt<T: Aead>(cipher: T, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>, EncryptError> {
+/// Aead Decrypt
+fn aead_decrypt<T: Aead>(cipher: &T, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>> {
     let nonce = GenericArray::from_slice(nonce);
     cipher.decrypt(nonce, data).or(Err(EncryptError::DecryptErr))
 }
 
+//--------------------------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
