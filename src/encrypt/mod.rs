@@ -1,4 +1,7 @@
-pub mod aead_aes_gcm;
-pub mod ss_encrypt_util;
-pub mod ss_aead;
-pub mod ring_aes;
+use md5::{Digest, Md5};
+
+mod ss;
+mod aead;
+mod error;
+
+

@@ -8,8 +8,6 @@ use async_std::sync::Mutex;
 use async_std::task;
 use fantasy_util::time::system_time::SystemLocalTime;
 
-use crate::encrypt::aead_aes_gcm::AeadAes256Gcm;
-use crate::encrypt::ss_aead::SsAead;
 use crate::socks::socks5_connector::Socks5Connector;
 
 mod socks;
