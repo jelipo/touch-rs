@@ -9,9 +9,13 @@ use crate::encrypt::aead::EncryptError::InvalidSaltSize;
 use crate::encrypt::error::EncryptError;
 use crate::encrypt::error::Result;
 
-trait AeadEncrypt {
-    fn new(key: &[u8]) -> Self;
+pub enum AeadType {
+    AES128GCM,
+    AES256GCM,
+    Chacha20Poly1305,
+}
 
+pub trait AeadEncrypt {
     /// Aead Encrypt
     fn encrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>>;
 
@@ -24,12 +28,14 @@ pub struct AeadAes256Gcm {
     cipher: Aes256Gcm
 }
 
-impl AeadEncrypt for AeadAes256Gcm {
-    fn new(key: &[u8]) -> Self {
+impl AeadAes256Gcm {
+    pub fn new(key: &[u8]) -> Self {
         let generic_arr = GenericArray::from_slice(key);
         AeadAes256Gcm { cipher: Aes256Gcm::new(generic_arr) }
     }
+}
 
+impl AeadEncrypt for AeadAes256Gcm {
     fn encrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>> {
         aead_encrypt(&self.cipher, nonce, data)
     }
@@ -44,12 +50,14 @@ pub struct AeadAes128Gcm {
     cipher: Aes128Gcm
 }
 
-impl AeadEncrypt for AeadAes128Gcm {
-    fn new(key: &[u8]) -> Self {
+impl AeadAes128Gcm {
+    pub fn new(key: &[u8]) -> Self {
         let generic_arr = GenericArray::from_slice(key);
         AeadAes128Gcm { cipher: Aes128Gcm::new(generic_arr) }
     }
+}
 
+impl AeadEncrypt for AeadAes128Gcm {
     fn encrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>> {
         aead_encrypt(&self.cipher, nonce, data)
     }
@@ -64,12 +72,14 @@ pub struct AeadChacha20Poly1305 {
     cipher: ChaCha20Poly1305
 }
 
-impl AeadEncrypt for AeadChacha20Poly1305 {
-    fn new(key: &[u8]) -> Self {
+impl AeadChacha20Poly1305 {
+    pub fn new(key: &[u8]) -> Self {
         let generic_arr = GenericArray::from_slice(key);
         AeadChacha20Poly1305 { cipher: ChaCha20Poly1305::new(generic_arr) }
     }
+}
 
+impl AeadEncrypt for AeadChacha20Poly1305 {
     fn encrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>> {
         aead_encrypt(&self.cipher, nonce, data)
     }

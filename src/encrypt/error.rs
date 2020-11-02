@@ -7,8 +7,8 @@ pub type Result<T> = result::Result<T, EncryptError>;
 /// Errors about encrypt
 pub enum EncryptError {
     InvalidLength(u8),
-    // Invalid Slat size. u8: The right size
-    InvalidSaltSize(u8),
+    // Invalid Slat size. usize: The right size
+    InvalidSaltSize(usize),
     EncryptErr,
     DecryptErr,
 }

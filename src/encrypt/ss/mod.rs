@@ -25,7 +25,7 @@ fn gen_master_key(password: &[u8]) -> [u8; 32] {
 const SS_SUBKEY_STR: &[u8] = b"ss-subkey";
 
 fn generate_32_sub_key(salt_arr: &[u8], master_key: &[u8]) -> Result<[u8; 32]> {
-    if salt_arr.len() != 32 { return Err(InvalidSaltSize(32 as u8)); }
+    if salt_arr.len() != 32 { return Err(InvalidSaltSize(32)); }
     let hkdf = Hkdf::<Sha1>::new(Some(salt_arr), master_key);
     let mut subkey = [0u8; 32];
     hkdf.expand(SS_SUBKEY_STR, &mut subkey).unwrap();
@@ -33,7 +33,7 @@ fn generate_32_sub_key(salt_arr: &[u8], master_key: &[u8]) -> Result<[u8; 32]> {
 }
 
 fn generate_16_sub_key(salt_arr: &[u8], master_key: &[u8]) -> Result<[u8; 16]> {
-    if salt_arr.len() != 16 { return Err(InvalidSaltSize(16 as u8)); }
+    if salt_arr.len() != 16 { return Err(InvalidSaltSize(16)); }
     let hkdf = Hkdf::<Sha1>::new(Some(salt_arr), master_key);
     let mut subkey = [0u8; 16];
     hkdf.expand(SS_SUBKEY_STR, &mut subkey).unwrap();
