@@ -13,6 +13,7 @@ use crate::socks::socks5_connector::Socks5Connector;
 mod socks;
 mod ss;
 mod encrypt;
+mod net;
 
 
 fn main() -> io::Result<()> {

@@ -10,50 +10,101 @@ use crate::encrypt::ss::{gen_master_key, generate_16_sub_key, generate_32_sub_ke
 use crate::encrypt::ss::ss_aead::EncryptError::InvalidSaltSize;
 
 pub struct SsAead {
-    encryption: Box<dyn AeadEncrypt>
+    encryption: Box<dyn AeadEncrypt>,
+    en_nonce: Nonce,
+    de_nonce: Nonce,
 }
 
+/// Shadowsocks protocol supporting AEAD encryption
 impl SsAead {
-    fn new(salt: &[u8], password: &[u8], aead_type: &AeadType) -> Result<Self> {
+    /// Initialize according to the specified enum
+    ///
+    /// * `salt` - 16/32 bytes of each TCP connection header
+    /// * `password` - User's simple password
+    /// * `aead_type` - Aead type
+    pub fn new(salt: &[u8], password: &[u8], aead_type: &AeadType) -> Result<Self> {
         let master_key = gen_master_key(password);
         let encryption: Box<dyn AeadEncrypt> = match aead_type {
             AeadType::AES128GCM => {
-                if 16 != salt.len() { return Err(EncryptError::InvalidSaltSize(16)); }
                 let subkey = generate_16_sub_key(salt, &master_key)?;
                 Box::new(AeadAes128Gcm::new(&subkey))
             }
             AeadType::AES256GCM => {
-                if 32 != salt.len() { return Err(EncryptError::InvalidSaltSize(32)); }
                 let subkey = generate_32_sub_key(salt, &master_key)?;
                 Box::new(AeadAes256Gcm::new(&subkey))
             }
             AeadType::Chacha20Poly1305 => {
-                if 32 != salt.len() { return Err(EncryptError::InvalidSaltSize(32)); }
                 let subkey = generate_32_sub_key(salt, &master_key)?;
                 Box::new(AeadChacha20Poly1305::new(&subkey))
             }
         };
-        Ok(SsAead { encryption })
+        Ok(SsAead {
+            encryption,
+            de_nonce: Nonce::new(),
+            en_nonce: Nonce::new(),
+        })
     }
 
-    fn ss_encrypt(&self, data: &[u8]) -> Result<Vec<u8>> {
-        self.encryption.encrypt(&[0; 12], data)
+    pub fn ss_encrypt(&mut self, data: &[u8]) -> Result<Vec<u8>> {
+        let nonce_arr = self.en_nonce.get_and_increment();
+        self.encryption.encrypt(&nonce_arr, data)
     }
 
-    fn ss_decrypt(&self, data: &[u8]) -> Result<Vec<u8>> {
-        self.encryption.decrypt(&[0; 12], data)
+    pub fn ss_decrypt(&mut self, data: &[u8]) -> Result<Vec<u8>> {
+        let nonce_arr = self.de_nonce.get_and_increment();
+        self.encryption.decrypt(&nonce_arr, data)
     }
 }
 
-pub struct SsAes256Gcm {}
+pub struct Nonce {
+    base: u128
+}
 
+impl Nonce {
+    /// Get the nonce byte and increment
+    pub fn get_and_increment(&mut self) -> [u8; 12] {
+        let byt: [u8; 16] = self.base.to_be_bytes();
+        let mut new_nonce = [0u8; 12];
+        new_nonce.copy_from_slice(&byt[4..16]);
+        self.base = self.base + 1;
+        return new_nonce;
+    }
 
-pub struct SsAes128Gcm {}
+    pub fn new() -> Self { Nonce { base: 0 } }
+}
 
-pub struct SsChacha20Poly1305 {}
+#[cfg(test)]
+mod tests {
+    use crate::encrypt::aead::AeadType;
+    use crate::encrypt::ss::ss_aead::SsAead;
 
+    #[test]
+    fn ss_aes256gcm_test() {
+        let slat = [0u8; 32];
+        let mut ss_aead = SsAead::new(&slat, b"test", &AeadType::AES256GCM).unwrap();
+        let de_data: [u8; 2] = (1024 as u16).to_be_bytes();
+        let en_data = Box::new(ss_aead.ss_encrypt(&de_data).unwrap());
+        let de_data2 = Box::new(ss_aead.ss_decrypt(en_data.as_slice()).unwrap());
+        assert_eq!(&de_data, de_data2.as_slice());
+    }
 
+    #[test]
+    fn ss_aes128gcm_test() {
+        let slat = [0u8; 16];
+        let mut ss_aead = SsAead::new(&slat, b"test", &AeadType::AES128GCM).unwrap();
+        let de_data: [u8; 2] = (1024 as u16).to_be_bytes();
+        let en_data = Box::new(ss_aead.ss_encrypt(&de_data).unwrap());
+        let de_data2 = Box::new(ss_aead.ss_decrypt(en_data.as_slice()).unwrap());
+        assert_eq!(&de_data, de_data2.as_slice());
+    }
 
-
-
-
+    #[test]
+    fn ss_chacha20poly1305_test() {
+        let slat = [0u8; 32];
+        let mut ss_aead = SsAead::new(&slat, b"test", &AeadType::Chacha20Poly1305).unwrap();
+        let de_data: [u8; 2] = (1024 as u16).to_be_bytes();
+        let en_data = Box::new(ss_aead.ss_encrypt(&de_data).unwrap());
+        let de_data2 = Box::new(ss_aead.ss_decrypt(en_data.as_slice()).unwrap());
+        assert_eq!(&de_data, de_data2.as_slice());
+    }
+}

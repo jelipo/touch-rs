@@ -1,11 +1,11 @@
-use md5::{Digest, Md5};
-use crate::encrypt::error::EncryptError::InvalidSaltSize;
 use hkdf::Hkdf;
+use md5::{Digest, Md5};
 use sha1::Sha1;
+
+use crate::encrypt::error::EncryptError::InvalidSaltSize;
 use crate::encrypt::error::Result;
 
 mod ss_aead;
-mod nonce;
 
 
 /// Generate Shadowsocks master key.
