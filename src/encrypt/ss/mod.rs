@@ -5,7 +5,7 @@ use sha1::Sha1;
 use crate::encrypt::error::EncryptError::InvalidSaltSize;
 use crate::encrypt::error::Result;
 
-mod ss_aead;
+pub mod ss_aead;
 
 
 /// Generate Shadowsocks master key.

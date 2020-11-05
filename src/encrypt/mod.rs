@@ -1,7 +1,7 @@
 use md5::{Digest, Md5};
 
-mod ss;
-mod aead;
-mod error;
+pub mod ss;
+pub mod aead;
+pub mod error;
 
 
