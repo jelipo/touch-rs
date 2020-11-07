@@ -5,7 +5,6 @@ use aes_gcm::aead::{Aead, NewAead};
 use aes_gcm::aead::generic_array::GenericArray;
 use chacha20poly1305::ChaCha20Poly1305;
 
-use crate::encrypt::aead::EncryptError::InvalidSaltSize;
 use crate::encrypt::error::EncryptError;
 use crate::encrypt::error::Result;
 

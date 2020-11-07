@@ -1,10 +1,12 @@
 use std::io::{Error, Result};
 
+use async_std::io::Read;
 use async_std::io::ErrorKind;
 use async_std::net::{Ipv4Addr, SocketAddr, TcpStream};
 use async_std::prelude::*;
 
-use crate::socks::consts::{AddressHeader, AddressType, Command, SocksVersion};
+use crate::net::AddressType;
+use crate::socks::consts::{AddressHeader, Command, SocksVersion};
 
 /// Socks5 协议连接器
 pub struct Socks5Connector<'a> {
@@ -81,8 +83,7 @@ impl<'a> Socks5Connector<'a> {
         let mut address_head = [0u8; 4];
         self.tcp_stream.read(&mut address_head).await?;
         let address_type_byte = address_head[3];
-        let address_type_result = AddressType::with_byte(address_type_byte);
-        let address_type = address_type_result?;
+        let address_type = AddressType::with_byte(address_type_byte)?;
         let address = match address_type {
             AddressType::IPv4 => self.read_ipv4_address().await,
             AddressType::Domain => self.read_domain_address().await,

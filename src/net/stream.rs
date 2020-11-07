@@ -6,12 +6,12 @@ use async_std::io::Read;
 use async_std::net::{Ipv4Addr, TcpStream};
 use async_std::stream::Stream;
 use async_trait::async_trait;
-use futures::AsyncReadExt;
-use futures_util::io::ErrorKind;
+use async_std::io::ReadExt;
 
 use crate::encrypt::aead::AeadType;
 use crate::encrypt::error::EncryptError;
 use crate::encrypt::ss::ss_aead::SsAead;
+use std::io::ErrorKind;
 
 #[async_trait(? Send)]
 pub trait StreamReader {
@@ -65,7 +65,7 @@ impl StreamReader for SsStreamReader<'_> {
 }
 
 fn change_error(error: EncryptError) -> io::Error {
-    println!("{}", error);
+    println!("Stream encrypt error: {}", error);
     io::Error::from(ErrorKind::InvalidInput)
 }
 

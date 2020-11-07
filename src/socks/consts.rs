@@ -2,6 +2,7 @@ use std::io;
 use std::io::Error;
 
 use async_std::io::ErrorKind;
+use crate::net::AddressType;
 
 pub struct AddressHeader {
     pub socks_version: SocksVersion,
@@ -47,15 +48,7 @@ impl SocksVersion {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum AddressType {
-    //0x01
-    IPv4,
-    //0x03
-    Domain,
-    //0x04
-    IPv6,
-}
+
 
 impl AddressType {
     pub fn with_byte(address_type: u8) -> io::Result<AddressType> {

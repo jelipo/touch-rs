@@ -3,11 +3,10 @@ use async_std::net::{Shutdown, TcpListener, TcpStream};
 use async_std::prelude::*;
 use async_std::sync::Mutex;
 use async_std::task;
+use async_std::task::JoinHandle;
 use fantasy_util::time::system_time::SystemLocalTime;
 
 use crate::socks::socks5_connector::Socks5Connector;
-use async_std::task::JoinHandle;
-use futures::{FutureExt, StreamExt};
 
 mod socks;
 mod ss;
@@ -56,7 +55,7 @@ async fn proxy(client_stream: &mut TcpStream, remote_stream: &mut TcpStream, id:
         return io::copy(&mut remote_read, &mut client_write).await.unwrap();
     });
 
-
+    // TODO 阻塞等待完成
     handle2.await;
     client_stream.shutdown(Shutdown::Both);
     remote_stream.shutdown(Shutdown::Both);
