@@ -1,0 +1,3 @@
+trait Client {}
+
+trait Server {}

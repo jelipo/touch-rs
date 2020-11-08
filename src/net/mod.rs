@@ -1,5 +1,6 @@
 mod stream;
 mod proxy;
+mod connect;
 
 
 #[derive(Debug, PartialEq)]
