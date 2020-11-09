@@ -1,4 +1,4 @@
-use async_std::net::{Ipv4Addr, SocketAddr, ToSocketAddrs};
+use async_std::net::{SocketAddr, ToSocketAddrs};
 
 use crate::net::AddressType;
 

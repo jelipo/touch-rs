@@ -7,6 +7,8 @@ use async_std::task::JoinHandle;
 use fantasy_util::time::system_time::SystemLocalTime;
 
 use crate::socks::socks5_connector::Socks5Connector;
+use crate::net::stream::{SsStreamReader, StreamReader};
+use crate::encrypt::aead::AeadType;
 
 mod socks;
 mod ss;
@@ -17,7 +19,21 @@ mod net;
 fn main() -> io::Result<()> {
 
     //
-    task::block_on(start())
+    task::block_on(listen())
+
+    //task::block_on(start())
+}
+
+async fn listen() -> io::Result<()> {
+    let listener = TcpListener::bind("127.0.0.1:3391").await.unwrap();
+    let mut incoming = listener.incoming();
+    let option = incoming.next().await;
+    let mut stream = option.unwrap().unwrap();
+    let mut reader = SsStreamReader::new(&mut stream, b"test", &AeadType::AES256GCM);
+    let vec = reader.read().await?;
+    println!("Read : {:?}", vec);
+    println!("{:?}", String::from_utf8(vec));
+    Ok(())
 }
 
 async fn start() -> io::Result<()> {

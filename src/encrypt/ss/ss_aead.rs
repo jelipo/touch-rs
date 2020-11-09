@@ -7,7 +7,6 @@ use crate::encrypt::aead::{AeadAes128Gcm, AeadAes256Gcm, AeadChacha20Poly1305, A
 use crate::encrypt::error::EncryptError;
 use crate::encrypt::error::Result;
 use crate::encrypt::ss::{gen_master_key, generate_16_sub_key, generate_32_sub_key};
-use crate::encrypt::ss::ss_aead::EncryptError::InvalidSaltSize;
 
 pub struct SsAead {
     encryption: Box<dyn AeadEncrypt>,
@@ -63,9 +62,9 @@ pub struct Nonce {
 impl Nonce {
     /// Get the nonce byte and increment
     pub fn get_and_increment(&mut self) -> [u8; 12] {
-        let byt: [u8; 16] = self.base.to_be_bytes();
+        let byt: [u8; 16] = self.base.to_le_bytes();
         let mut new_nonce = [0u8; 12];
-        new_nonce.copy_from_slice(&byt[4..16]);
+        new_nonce.copy_from_slice(&byt[0..12]);
         self.base = self.base + 1;
         return new_nonce;
     }

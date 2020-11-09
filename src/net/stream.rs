@@ -1,17 +1,15 @@
 use std::borrow::BorrowMut;
 use std::io;
-use std::pin::Pin;
+use std::io::ErrorKind;
 
 use async_std::io::Read;
-use async_std::net::{Ipv4Addr, TcpStream};
+use async_std::io::ReadExt;
 use async_std::stream::Stream;
 use async_trait::async_trait;
-use async_std::io::ReadExt;
 
 use crate::encrypt::aead::AeadType;
 use crate::encrypt::error::EncryptError;
 use crate::encrypt::ss::ss_aead::SsAead;
-use std::io::ErrorKind;
 
 #[async_trait(? Send)]
 pub trait StreamReader {
@@ -58,9 +56,9 @@ impl StreamReader for SsStreamReader<'_> {
         // Read 
         let len_vec = decrypt(&self.ss_len_buf, aead)?;
         let len = u16::from_be_bytes([len_vec[0], len_vec[1]]);
-        let mut en_data = vec![0u8; len as usize];
+        let mut en_data = vec![0u8; (len + 16) as usize];
         self.stream.read_exact(&mut en_data).await?;
-        decrypt(&self.ss_len_buf, aead)
+        decrypt(en_data.as_slice(), aead)
     }
 }
 

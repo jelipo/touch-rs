@@ -1,4 +1,4 @@
-mod stream;
+pub mod stream;
 mod proxy;
 mod connect;
 
