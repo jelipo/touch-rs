@@ -6,17 +6,33 @@ use async_std::task;
 use async_std::task::JoinHandle;
 use fantasy_util::time::system_time::SystemLocalTime;
 
-use crate::socks::socks5_connector::Socks5Connector;
-use crate::net::stream::{SsStreamReader, StreamReader};
 use crate::encrypt::aead::AeadType;
+use crate::net::stream::{SsStreamReader, StreamReader};
+use crate::socks::socks5::Socks5;
+use crate::socks::socks5_connector::Socks5Connector;
+use crate::core::profile::Profile;
 
 mod socks;
 mod ss;
 mod encrypt;
 mod net;
+mod core;
 
 
 fn main() -> io::Result<()> {
+    let data = r#"
+        {
+            "name": "John Doe",
+            "age": 43,
+            "phones": [
+                "+44 1234567",
+                "+44 2345678"
+            ]
+        }"#;
+    let p: Profile = serde_json::from_str(data)?;
+    let value = p.input.config;
+
+    let result: Result<String, E> = serde_json::from_value(value);
 
     //
     task::block_on(listen())
@@ -31,8 +47,12 @@ async fn listen() -> io::Result<()> {
     let mut stream = option.unwrap().unwrap();
     let mut reader = SsStreamReader::new(&mut stream, b"test", &AeadType::AES256GCM);
     let vec = reader.read().await?;
-    println!("Read : {:?}", vec);
-    println!("{:?}", String::from_utf8(vec));
+    println!("Read:{:?}", vec);
+    let de_data = vec.as_slice();
+    let addrs = Socks5::read_to_socket_addrs(de_data);
+    println!("{:?}", addrs);
+    let data = &de_data[(addrs.1)..de_data.len()];
+    println!("{:?}", String::from_utf8(data.to_vec()).unwrap().as_str());
     Ok(())
 }
 

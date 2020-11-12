@@ -7,6 +7,7 @@ use crate::encrypt::aead::{AeadAes128Gcm, AeadAes256Gcm, AeadChacha20Poly1305, A
 use crate::encrypt::error::EncryptError;
 use crate::encrypt::error::Result;
 use crate::encrypt::ss::{gen_master_key, generate_16_sub_key, generate_32_sub_key};
+use std::borrow::Borrow;
 
 pub struct SsAead {
     encryption: Box<dyn AeadEncrypt>,
@@ -46,12 +47,12 @@ impl SsAead {
 
     pub fn ss_encrypt(&mut self, data: &[u8]) -> Result<Vec<u8>> {
         let nonce_arr = self.en_nonce.get_and_increment();
-        self.encryption.encrypt(&nonce_arr, data)
+        self.encryption.encrypt(nonce_arr.borrow(), data)
     }
 
     pub fn ss_decrypt(&mut self, data: &[u8]) -> Result<Vec<u8>> {
         let nonce_arr = self.de_nonce.get_and_increment();
-        self.encryption.decrypt(&nonce_arr, data)
+        self.encryption.decrypt(nonce_arr.borrow(), data)
     }
 }
 
@@ -61,12 +62,10 @@ pub struct Nonce {
 
 impl Nonce {
     /// Get the nonce byte and increment
-    pub fn get_and_increment(&mut self) -> [u8; 12] {
+    pub fn get_and_increment(&mut self) -> Box<[u8]> {
         let byt: [u8; 16] = self.base.to_le_bytes();
-        let mut new_nonce = [0u8; 12];
-        new_nonce.copy_from_slice(&byt[0..12]);
         self.base = self.base + 1;
-        return new_nonce;
+        byt[0..12].into()
     }
 
     pub fn new() -> Self { Nonce { base: 0 } }
