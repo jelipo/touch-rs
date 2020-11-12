@@ -6,7 +6,8 @@ pub struct Profile {
 }
 
 pub struct Protocol {
+    /// protocal name
     pub name: String,
-    //
+    /// Config
     pub config: Value,
 }
