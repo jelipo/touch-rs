@@ -1,4 +1,3 @@
-use std::io::{Error, ErrorKind};
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs};
 use std::vec::IntoIter;
 

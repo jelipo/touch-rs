@@ -1,13 +1,26 @@
 use serde_json::Value;
-use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize)]
 pub struct Profile {
-    pub input: Protocol
+    pub input: ProtocolConf,
+    pub output: ProtocolConf,
 }
 
-pub struct Protocol {
-    /// protocal name
+#[derive(Serialize, Deserialize)]
+pub struct ProtocolConf {
+    /// Protocal name
     pub name: String,
+    /// Active or Passive mode
+    pub mode: Option<String>,
     /// Config
     pub config: Value,
+}
+
+
+pub enum InputType {
+    Original,
+    Socks5,
+    SsAes128Gcm,
+    SsAes256Gcm,
 }

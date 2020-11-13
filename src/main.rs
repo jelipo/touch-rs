@@ -10,7 +10,6 @@ use crate::encrypt::aead::AeadType;
 use crate::net::stream::{SsStreamReader, StreamReader};
 use crate::socks::socks5::Socks5;
 use crate::socks::socks5_connector::Socks5Connector;
-use crate::core::profile::Profile;
 
 mod socks;
 mod ss;
@@ -20,19 +19,6 @@ mod core;
 
 
 fn main() -> io::Result<()> {
-    let data = r#"
-        {
-            "name": "John Doe",
-            "age": 43,
-            "phones": [
-                "+44 1234567",
-                "+44 2345678"
-            ]
-        }"#;
-    let p: Profile = serde_json::from_str(data)?;
-    let value = p.input.config;
-
-    let result: Result<String, E> = serde_json::from_value(value);
 
     //
     task::block_on(listen())
