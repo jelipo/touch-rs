@@ -1,2 +1,2 @@
 pub mod profile;
-mod config;
+pub mod config;

@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub struct Profile {
+    /// Custom DNS server
+    pub dns: Option<String>,
     pub input: ProtocolConf,
     pub output: ProtocolConf,
 }
