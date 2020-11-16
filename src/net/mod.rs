@@ -1,6 +1,7 @@
 pub mod stream;
 mod proxy;
 mod connect;
+mod socks5_stream;
 
 
 #[derive(Debug, PartialEq)]

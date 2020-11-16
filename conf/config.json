@@ -1,0 +1,21 @@
+{
+  "dns": "114.114.114.114",
+  "input": {
+    "name": "socks5",
+    "mode": "passive",
+    "config": {
+      "bind_host": "127.0.0.1",
+      "bind_port": 1080,
+      "password": "test"
+    }
+  },
+  "output": {
+    "name": "ss-aes-256-gcm",
+    "mode": "active",
+    "config": {
+      "remote_host": "127.0.0.1",
+      "remote_port": 3391,
+      "password": "test"
+    }
+  }
+}

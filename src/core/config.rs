@@ -4,9 +4,9 @@ use std::io::{Error, ErrorKind};
 use std::io::Read;
 use std::path::Path;
 use std::result::Result::Err;
-
 use async_std::net::TcpStream;
 use log::{info, trace, warn};
+
 
 use crate::core::profile::{Profile, ProtocolConf};
 
@@ -21,6 +21,7 @@ const FILE_MAX_SIZE: u64 = 1 * 1024 * 1024;
 impl ConfigReader {
     pub fn read_config(path: &Path) -> io::Result<Self> {
         let profile = read_file(path)?;
+        std::
         Ok(Self {
             input: profile.input,
             output: profile.output,

@@ -15,3 +15,9 @@ impl<A: ToSocketAddrs> Proxy<A> {
         }
     }
 }
+
+pub trait ForwardProxy {}
+
+pub trait PassiveProxy {
+
+}
