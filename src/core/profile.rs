@@ -12,7 +12,7 @@ pub struct Profile {
 #[derive(Serialize, Deserialize)]
 pub struct ProtocolConf {
     /// Protocal name
-    pub name: String,
+    pub name: InputType,
     /// Active or Passive mode
     pub mode: Option<String>,
     /// Config
@@ -41,9 +41,14 @@ pub struct BasePassiveConfig {
     pub password: Option<String>,
 }
 
+#[derive(Serialize, Deserialize)]
 pub enum InputType {
+    #[serde(alias = "original")]
     Original,
+    #[serde(alias = "socks5")]
     Socks5,
+    #[serde(alias = "ss-aes-128-gcm")]
     SsAes128Gcm,
+    #[serde(alias = "ss-aes-256-gcm")]
     SsAes256Gcm,
 }

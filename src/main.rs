@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use async_std::io;
 use async_std::net::{Shutdown, TcpListener, TcpStream};
 use async_std::prelude::*;
@@ -6,20 +8,25 @@ use async_std::task;
 use async_std::task::JoinHandle;
 use fantasy_util::time::system_time::SystemLocalTime;
 
+use crate::core::config::ConfigReader;
 use crate::encrypt::aead::AeadType;
 use crate::net::stream::{SsStreamReader, StreamReader};
 use crate::socks::socks5::Socks5;
 use crate::socks::socks5_connector::Socks5Connector;
+use env_logger::fmt;
 
 mod socks;
 mod ss;
 mod encrypt;
 mod net;
 mod core;
+mod util;
 
 
 fn main() -> io::Result<()> {
-
+    env_logger::init();
+    let path = Path::new("./conf/config.json");
+    let reader = ConfigReader::read_config(path)?;
 
     task::block_on(listen())
 
