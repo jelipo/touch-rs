@@ -4,11 +4,11 @@ use std::io::Error;
 use async_std::io::ErrorKind;
 use crate::net::AddressType;
 
-pub struct AddressHeader {
+pub struct Socks5Header {
     pub socks_version: SocksVersion,
     pub cmd: Command,
     pub address_type: AddressType,
-    pub address: String,
+    pub address: Box<Vec<u8>>,
     pub port: u16,
 }
 
@@ -47,7 +47,6 @@ impl SocksVersion {
         }
     }
 }
-
 
 
 impl AddressType {

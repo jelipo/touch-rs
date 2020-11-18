@@ -12,9 +12,9 @@ pub struct Profile {
 #[derive(Serialize, Deserialize)]
 pub struct ProtocolConf {
     /// Protocal name
-    pub name: InputType,
+    pub name: ProtocalType,
     /// Active or Passive mode
-    pub mode: Option<String>,
+    pub mode: Option<ConnectMode>,
     /// Config
     pub config: Value,
 }
@@ -42,7 +42,7 @@ pub struct BasePassiveConfig {
 }
 
 #[derive(Serialize, Deserialize)]
-pub enum InputType {
+pub enum ProtocalType {
     #[serde(alias = "original")]
     Original,
     #[serde(alias = "socks5")]
@@ -51,4 +51,14 @@ pub enum InputType {
     SsAes128Gcm,
     #[serde(alias = "ss-aes-256-gcm")]
     SsAes256Gcm,
+    #[serde(alias = "chacha20poly1305")]
+    Chacha20Poly1305,
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum ConnectMode {
+    #[serde(alias = "active")]
+    Active,
+    #[serde(alias = "passive")]
+    Passive,
 }

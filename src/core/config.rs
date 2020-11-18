@@ -22,8 +22,8 @@ pub struct ConfigReader {
 impl ConfigReader {
     pub fn read_config(path: &Path) -> io::Result<Self> {
         let profile = read_file(path)?;
-        let dns_ipv4 = profile.dns.map(|e| {
-            Dns::change_ipv4(dns_str.as_str())?
+        let dns_ipv4 = profile.dns.map(|dns| {
+            Dns::change_ipv4(dns.as_str()).unwrap()
         });
         Ok(Self {
             dns: dns_ipv4,
@@ -46,21 +46,4 @@ fn read_file(path: &Path) -> io::Result<Profile> {
         error!("Read file failed:{}", e);
         Error::new(ErrorKind::InvalidInput, "Read file failed.")
     })
-}
-
-async fn main() {
-    // Construct a new Resolver with default configuration options
-    let resolver = resolver(
-        config::ResolverConfig::d,
-        config::ResolverOpts::default(),
-    ).await.expect("failed to connect resolver");
-
-    // Lookup the IP addresses associated with a name.
-    // This returns a future that will lookup the IP addresses, it must be run in the Core to
-    //  to get the actual result.
-    let mut response = resolver.lookup_ip("www.example.com.").await.unwrap();
-
-    // There can be many addresses associated with the name,
-    //  this can return IPv4 and/or IPv6 addresses
-    let address = response.iter().next().expect("no addresses returned!");
 }

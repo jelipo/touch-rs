@@ -1,12 +1,13 @@
 use std::io::{Error, Result};
 
-use async_std::io::Read;
 use async_std::io::ErrorKind;
+use async_std::io::Read;
 use async_std::net::{Ipv4Addr, SocketAddr, TcpStream};
 use async_std::prelude::*;
 
 use crate::net::AddressType;
-use crate::socks::consts::{AddressHeader, Command, SocksVersion};
+use crate::socks::consts::{Socks5Header, Command, SocksVersion};
+use crate::net::proxy::ProxyInfo;
 
 /// Socks5 协议连接器
 pub struct Socks5Connector<'a> {
@@ -18,68 +19,37 @@ impl<'a> Socks5Connector<'a> {
         Self { tcp_stream: tcp }
     }
 
-    fn check_head(socks5_head: Vec<u8>) -> Result<u8> {
-        let socks_version = socks5_head[0];
-        if socks_version != 5 {
-            return Err(Error::new(
-                ErrorKind::ConnectionAborted,
-                format!("Unsupport socks version:'{}", socks_version),
-            ));
+    fn method_size(socks5_head: &[u8]) -> Result<u8> {
+        if socks5_head[0] != 5 {
+            let err_str = format!("Unsupport Socks5 version:'{}", socks5_head[0]);
+            return Err(Error::new(ErrorKind::ConnectionAborted, err_str));
         }
-        return Ok(socks5_head[1]);
-    }
-
-    pub async fn connect(&mut self) -> Result<TcpStream> {
-        return self.start_connect().await;
+        Ok(socks5_head[1])
     }
 
     /// 检验协议头并建立连接的主要方法
-    async fn start_connect(&mut self) -> Result<TcpStream> {
+    pub async fn check(&mut self) -> Result<ProxyInfo> {
         let mut head = vec![0u8; 2];
-        let read = self.tcp_stream.read(&mut head).await?;
-        if read == 0 {
-            return Err(Error::new(ErrorKind::ConnectionAborted, "Connection closed."));
-        }
-        let method_size = Socks5Connector::check_head(head)?;
+        self.tcp_stream.read_exact(&mut head).await?;
+        let method_size = Socks5Connector::method_size(head.as_slice())?;
         //read client methods
         let mut first_method_arr = vec![0u8; method_size as usize];
-        if 0 == self.tcp_stream.read(&mut first_method_arr).await? {
-            return Err(Error::new(ErrorKind::ConnectionAborted, "Connection closed."));
-        }
+        self.tcp_stream.read_exact(&mut first_method_arr).await?;
         //write server methods
-        if !self.write_server_methods().await? {
-            return Err(Error::new(
-                ErrorKind::ConnectionAborted,
-                "Method failed to send.",
-            ));
-        }
-        let address_header = self.read_address().await?;
-        let remote_stream = match address_header.cmd {
-            Command::Connect => {
-                self.connect_tcp_remote(&address_header.address, &address_header.port).await?
-            }
-            Command::Bind => {
-                return Err(Error::new(ErrorKind::InvalidInput, "Not support 'BIND'."));
-            }
-            Command::UdpAssociate => {
-                return Err(Error::new(ErrorKind::InvalidInput, "Not support 'UdpAssociate'."));
-            }
-        };
-        let local_addr = remote_stream.local_addr()?;
-        self.write_connect_success(local_addr).await;
-        return Result::Ok(remote_stream);
+        self.write_server_methods().await?;
+        let info = self.read_address().await?;
+        Ok(info)
     }
 
     /// 向client端写入server端支持的方法
     /// 当发送完成时返回true，反之false
-    async fn write_server_methods(&mut self) -> Result<bool> {
+    async fn write_server_methods(&mut self) -> Result<()> {
         let server_mthod = [5, 0];
-        let write = self.tcp_stream.write(&server_mthod).await?;
-        return Ok(write != 0);
+        self.tcp_stream.write_all(&server_mthod).await
     }
 
     /// 从TCP流中读取发送过来的地址信息
-    async fn read_address(&mut self) -> Result<AddressHeader> {
+    async fn read_address(&mut self) -> Result<ProxyInfo> {
         let mut address_head = [0u8; 4];
         self.tcp_stream.read(&mut address_head).await?;
         let address_type_byte = address_head[3];
@@ -89,44 +59,34 @@ impl<'a> Socks5Connector<'a> {
             AddressType::Domain => self.read_domain_address().await,
             _ => return Err(Error::new(ErrorKind::InvalidInput, "不支持的地址类型")),
         };
-        return Ok(AddressHeader {
-            socks_version: SocksVersion::with_byte(address_head[0]),
-            cmd: Command::with_byte(address_head[1])?,
+        return Ok(ProxyInfo {
             address_type,
             address: address?,
             port: self.read_port().await,
         });
     }
 
-    /// 从TCP流中读取4个字节并返回为字符串
-    async fn read_ipv4_address(&mut self) -> Result<String> {
-        let ip_arr = [0u8; 4];
-        return Ok(Ipv4Addr::from(ip_arr).to_string());
+    /// 从TCP流中读取4个字节并返回
+    async fn read_ipv4_address(&mut self) -> Result<Box<Vec<u8>>> {
+        let mut ip_arr = Box::new(vec![0u8; 4]);
+        self.tcp_stream.read_exact(ip_arr.as_mut()).await?;
+        return Ok(ip_arr);
     }
 
     /// 从TCP流中读取域名版的地址
-    async fn read_domain_address(&mut self) -> Result<String> {
+    async fn read_domain_address(&mut self) -> Result<Box<Vec<u8>>> {
         let mut length_arr = [0u8; 1];
-        let read = self.tcp_stream.read(&mut length_arr).await?;
-        if read == 0 {
-            return Err(Error::new(ErrorKind::InvalidInput, "Connection closed."));
-        }
+        self.tcp_stream.read_exact(&mut length_arr).await?;
         let length = length_arr[0];
-        let mut domain_addr = vec![0u8; length as usize];
-        let end = self.tcp_stream.read(&mut domain_addr).await?;
-        if end == 0 {
-            return Err(Error::new(ErrorKind::InvalidInput, "Connection closed."));
-        }
-        return match String::from_utf8(domain_addr) {
-            Ok(result) => Ok(result),
-            Err(_) => Err(Error::new(ErrorKind::ConnectionAborted, "格式转换失败")),
-        };
+        let mut domain_addr = Box::new(vec![0u8; length as usize]);
+        self.tcp_stream.read_exact(domain_addr.as_mut()).await?;
+        Ok(domain_addr)
     }
 
     /// 从TCP流中读取端口号
     async fn read_port(&mut self) -> u16 {
         let mut length_arr = [0u8; 2];
-        let read = self.tcp_stream.read(&mut length_arr).await;
+        self.tcp_stream.read_exact(&mut length_arr).await;
         return u16::from_be_bytes(length_arr);
     }
 

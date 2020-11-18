@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use crate::encrypt::aead::AeadType;
 use crate::encrypt::error::EncryptError;
 use crate::encrypt::ss::ss_aead::SsAead;
+use crate::core::profile::ProtocalType;
 
 #[async_trait(? Send)]
 pub trait StreamReader {
@@ -19,13 +20,13 @@ pub trait StreamReader {
 pub struct SsStreamReader<'a> {
     stream: Box<&'a mut (dyn Read + Unpin)>,
     password: &'a [u8],
-    aead_type: &'a AeadType,
+    aead_type: &'a ProtocalType,
     ss_aead: Option<SsAead>,
     ss_len_buf: [u8; 18],
 }
 
 impl<'a> SsStreamReader<'a> {
-    pub fn new<R>(stream: &'a mut R, password: &'a [u8], aead_type: &'a AeadType) -> Self
+    pub fn new<R>(stream: &'a mut R, password: &'a [u8], aead_type: &'a ProtocalType) -> Self
         where R: Read + Unpin + Sized {
         SsStreamReader {
             stream: Box::new(stream),

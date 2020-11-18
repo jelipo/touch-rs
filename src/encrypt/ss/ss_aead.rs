@@ -8,6 +8,7 @@ use crate::encrypt::error::EncryptError;
 use crate::encrypt::error::Result;
 use crate::encrypt::ss::{gen_master_key, generate_16_sub_key, generate_32_sub_key};
 use std::borrow::Borrow;
+use crate::core::profile::ProtocalType;
 
 pub struct SsAead {
     encryption: Box<dyn AeadEncrypt>,
@@ -22,21 +23,22 @@ impl SsAead {
     /// * `salt` - 16/32 bytes of each TCP connection header
     /// * `password` - User's simple password
     /// * `aead_type` - Aead type
-    pub fn new(salt: &[u8], password: &[u8], aead_type: &AeadType) -> Result<Self> {
+    pub fn new(salt: &[u8], password: &[u8], aead_type: &ProtocalType) -> Result<Self> {
         let master_key = gen_master_key(password);
         let encryption: Box<dyn AeadEncrypt> = match aead_type {
-            AeadType::AES128GCM => {
+            ProtocalType::SsAes128Gcm => {
                 let subkey = generate_16_sub_key(salt, &master_key)?;
                 Box::new(AeadAes128Gcm::new(&subkey))
             }
-            AeadType::AES256GCM => {
+            ProtocalType::SsAes256Gcm => {
                 let subkey = generate_32_sub_key(salt, &master_key)?;
                 Box::new(AeadAes256Gcm::new(&subkey))
             }
-            AeadType::Chacha20Poly1305 => {
+            ProtocalType::Chacha20Poly1305 => {
                 let subkey = generate_32_sub_key(salt, &master_key)?;
                 Box::new(AeadChacha20Poly1305::new(&subkey))
             }
+            _ => return Err(EncryptError::NotSupport)
         };
         Ok(SsAead {
             encryption,
@@ -75,11 +77,13 @@ impl Nonce {
 mod tests {
     use crate::encrypt::aead::AeadType;
     use crate::encrypt::ss::ss_aead::SsAead;
+    use crate::core::profile::ProtocalType;
 
     #[test]
     fn ss_aes256gcm_test() {
         let slat = [0u8; 32];
-        let mut ss_aead = SsAead::new(&slat, b"test", &AeadType::AES256GCM).unwrap();
+        let mut ss_aead = SsAead::new(&slat, b"test",
+                                      &ProtocalType::SsAes256Gcm).unwrap();
         let de_data: [u8; 2] = (1024 as u16).to_be_bytes();
         let en_data = Box::new(ss_aead.ss_encrypt(&de_data).unwrap());
         let de_data2 = Box::new(ss_aead.ss_decrypt(en_data.as_slice()).unwrap());
@@ -89,7 +93,8 @@ mod tests {
     #[test]
     fn ss_aes128gcm_test() {
         let slat = [0u8; 16];
-        let mut ss_aead = SsAead::new(&slat, b"test", &AeadType::AES128GCM).unwrap();
+        let mut ss_aead = SsAead::new(&slat, b"test",
+                                      &ProtocalType::SsAes128Gcm).unwrap();
         let de_data: [u8; 2] = (1024 as u16).to_be_bytes();
         let en_data = Box::new(ss_aead.ss_encrypt(&de_data).unwrap());
         let de_data2 = Box::new(ss_aead.ss_decrypt(en_data.as_slice()).unwrap());
@@ -99,7 +104,8 @@ mod tests {
     #[test]
     fn ss_chacha20poly1305_test() {
         let slat = [0u8; 32];
-        let mut ss_aead = SsAead::new(&slat, b"test", &AeadType::Chacha20Poly1305).unwrap();
+        let mut ss_aead = SsAead::new(&slat, b"test",
+                                      &ProtocalType::Chacha20Poly1305).unwrap();
         let de_data: [u8; 2] = (1024 as u16).to_be_bytes();
         let en_data = Box::new(ss_aead.ss_encrypt(&de_data).unwrap());
         let de_data2 = Box::new(ss_aead.ss_decrypt(en_data.as_slice()).unwrap());

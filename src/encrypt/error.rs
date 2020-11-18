@@ -12,6 +12,7 @@ pub enum EncryptError {
     InvalidSaltSize(usize),
     EncryptErr,
     DecryptErr,
+    NotSupport,
 }
 
 impl fmt::Display for EncryptError {

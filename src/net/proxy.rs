@@ -1,4 +1,5 @@
 use async_std::net::{SocketAddr, ToSocketAddrs};
+use async_trait::async_trait;
 
 use crate::net::AddressType;
 
@@ -16,8 +17,15 @@ impl<A: ToSocketAddrs> Proxy<A> {
     }
 }
 
-pub trait ForwardProxy {}
-
-pub trait PassiveProxy {
-
+#[async_trait(? Send)]
+pub trait InputProxy {
+    /// Start proxy.
+    async fn start(&mut self);
 }
+
+pub struct ProxyInfo {
+    pub address_type: AddressType,
+    pub address: Box<Vec<u8>>,
+    pub port: u16,
+}
+

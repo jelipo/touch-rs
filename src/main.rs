@@ -6,14 +6,15 @@ use async_std::prelude::*;
 use async_std::sync::Mutex;
 use async_std::task;
 use async_std::task::JoinHandle;
+use env_logger::fmt;
 use fantasy_util::time::system_time::SystemLocalTime;
 
 use crate::core::config::ConfigReader;
+use crate::core::profile::ProtocalType;
 use crate::encrypt::aead::AeadType;
 use crate::net::stream::{SsStreamReader, StreamReader};
 use crate::socks::socks5::Socks5;
 use crate::socks::socks5_connector::Socks5Connector;
-use env_logger::fmt;
 
 mod socks;
 mod ss;
@@ -38,7 +39,7 @@ async fn listen() -> io::Result<()> {
     let mut incoming = listener.incoming();
     let option = incoming.next().await;
     let mut stream = option.unwrap().unwrap();
-    let mut reader = SsStreamReader::new(&mut stream, b"test", &AeadType::AES256GCM);
+    let mut reader = SsStreamReader::new(&mut stream, b"test", &ProtocalType::SsAes256Gcm);
     let vec = reader.read().await?;
     println!("Read:{:?}", vec);
     let de_data = vec.as_slice();
@@ -50,24 +51,6 @@ async fn listen() -> io::Result<()> {
 }
 
 async fn start() -> io::Result<()> {
-    let listener = TcpListener::bind("127.0.0.1:10801").await.unwrap();
-    println!("Listening on {}", listener.local_addr().unwrap());
-    let mut incoming = listener.incoming();
-    while let Some(stream) = incoming.next().await {
-        let mut client_stream = stream.unwrap();
-        task::spawn(async move {
-            let id = SystemLocalTime::unix_mills();
-            println!("开始创建连接{}", id);
-            let mut socks5 = Socks5Connector::new(&mut client_stream);
-            match socks5.connect().await {
-                Ok(mut remote_stream) => {
-                    proxy(&mut client_stream, &mut remote_stream, id).await
-                }
-                Err(err) => eprintln!("创建连接失败,异常信息:{}", err)
-            }
-            println!("此连接生命周期结束")
-        });
-    }
     Ok(())
 }
 
