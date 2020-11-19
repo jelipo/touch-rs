@@ -1,5 +1,4 @@
-use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs};
-use std::vec::IntoIter;
+use std::net::{Ipv6Addr, SocketAddrV6};
 
 pub struct Socks5 {}
 

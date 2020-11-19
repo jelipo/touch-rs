@@ -1,15 +1,13 @@
 use std::io::{Error, Result};
 
 use async_std::io::ErrorKind;
-use async_std::io::Read;
-use async_std::net::{Ipv4Addr, SocketAddr, TcpStream};
+use async_std::net::{SocketAddr, TcpStream};
 use async_std::prelude::*;
 
 use crate::net::AddressType;
-use crate::socks::consts::{Socks5Header, Command, SocksVersion};
 use crate::net::proxy::ProxyInfo;
 
-/// Socks5 协议连接器
+/// Socks5 协议
 pub struct Socks5Connector<'a> {
     tcp_stream: &'a mut TcpStream,
 }
@@ -59,18 +57,20 @@ impl<'a> Socks5Connector<'a> {
             AddressType::Domain => self.read_domain_address().await,
             _ => return Err(Error::new(ErrorKind::InvalidInput, "不支持的地址类型")),
         };
-        return Ok(ProxyInfo {
+        let port = self.read_port().await;
+        self.write_connect_success(port);
+        Ok(ProxyInfo {
             address_type,
             address: address?,
-            port: self.read_port().await,
-        });
+            port,
+        })
     }
 
     /// 从TCP流中读取4个字节并返回
     async fn read_ipv4_address(&mut self) -> Result<Box<Vec<u8>>> {
         let mut ip_arr = Box::new(vec![0u8; 4]);
         self.tcp_stream.read_exact(ip_arr.as_mut()).await?;
-        return Ok(ip_arr);
+        Ok(ip_arr)
     }
 
     /// 从TCP流中读取域名版的地址
@@ -87,21 +87,15 @@ impl<'a> Socks5Connector<'a> {
     async fn read_port(&mut self) -> u16 {
         let mut length_arr = [0u8; 2];
         self.tcp_stream.read_exact(&mut length_arr).await;
-        return u16::from_be_bytes(length_arr);
+        u16::from_be_bytes(length_arr)
     }
 
     /// 向客户端写入连接成功的消息
-    async fn write_connect_success(&mut self, local_addr: SocketAddr) {
+    async fn write_connect_success(&mut self, port: u16) -> Result<()> {
         //连接成功的字节中，前几位是固定的
         const HEAD: [u8; 8] = [5, 0, 0, 1, 0, 0, 0, 0];
-        self.tcp_stream.write(&HEAD).await;
-        let port_arr = local_addr.port().to_be_bytes();
-        self.tcp_stream.write(&port_arr).await;
-    }
-
-    /// 使用TCP连接远程地址
-    async fn connect_tcp_remote(&mut self, host: &String, port: &u16) -> Result<TcpStream> {
-        let address = format!("{}:{}", host, port);
-        return TcpStream::connect(address.as_str()).await;
+        self.tcp_stream.write_all(&HEAD).await;
+        let port_arr = port.to_be_bytes();
+        self.tcp_stream.write_all(&port_arr).await
     }
 }

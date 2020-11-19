@@ -1,24 +1,21 @@
 use std::borrow::BorrowMut;
 use std::io;
-use std::io::ErrorKind;
 
-use async_std::io::Read;
+use async_std::io::{ErrorKind, Read};
 use async_std::io::ReadExt;
+use async_std::net::TcpStream;
+use async_std::prelude::*;
 use async_std::stream::Stream;
 use async_trait::async_trait;
 
+use crate::core::profile::ProtocalType;
 use crate::encrypt::aead::AeadType;
 use crate::encrypt::error::EncryptError;
 use crate::encrypt::ss::ss_aead::SsAead;
-use crate::core::profile::ProtocalType;
-
-#[async_trait(? Send)]
-pub trait StreamReader {
-    async fn read(&mut self) -> io::Result<Vec<u8>>;
-}
+use crate::net::proxy::ProxyStream;
 
 pub struct SsStreamReader<'a> {
-    stream: Box<&'a mut (dyn Read + Unpin)>,
+    stream: &'a mut TcpStream,
     password: &'a [u8],
     aead_type: &'a ProtocalType,
     ss_aead: Option<SsAead>,
@@ -26,10 +23,9 @@ pub struct SsStreamReader<'a> {
 }
 
 impl<'a> SsStreamReader<'a> {
-    pub fn new<R>(stream: &'a mut R, password: &'a [u8], aead_type: &'a ProtocalType) -> Self
-        where R: Read + Unpin + Sized {
+    pub fn new(stream: &'a mut TcpStream, password: &'a [u8], aead_type: &'a ProtocalType) -> Self {
         SsStreamReader {
-            stream: Box::new(stream),
+            stream,
             password,
             aead_type,
             ss_aead: None,
@@ -37,18 +33,16 @@ impl<'a> SsStreamReader<'a> {
         }
     }
 }
-
+#[async_trait(? )]
 #[async_trait(? Send)]
-impl StreamReader for SsStreamReader<'_> {
+impl ProxyStream for SsStreamReader<'_> {
     async fn read(&mut self) -> io::Result<Vec<u8>> {
         // Check if this is the first read. If first read,creat the SsAead.
         if self.ss_aead.is_none() {
             let mut salt = [0u8; 32];
             self.stream.read_exact(&mut salt).await?;
-            let ss_aead = match SsAead::new(&salt, self.password, self.aead_type) {
-                Ok(ss_aead) => Ok(ss_aead),
-                Err(e) => Err(change_error(e)),
-            }?;
+            let ss_aead = SsAead::new(&salt, self.password, self.aead_type)
+                .or_else(|e| { Err(change_error(e)) })?;
             self.ss_aead = Some(ss_aead)
         }
         // Read bytes and decrypt byte
@@ -61,6 +55,20 @@ impl StreamReader for SsStreamReader<'_> {
         self.stream.read_exact(&mut en_data).await?;
         decrypt(en_data.as_slice(), aead)
     }
+
+    async fn write(&mut self, raw_data: &[u8]) -> io::Result<()> {
+        // Check if this is the first read. If first read,creat the SsAead.
+        if self.ss_aead.is_none() {
+            // TODO Creat random slat.
+            let mut salt = [0u8; 32];
+            let ss_aead = SsAead::new(&salt, self.password, self.aead_type)
+                .or_else(|e| { Err(change_error(e)) })?;
+            self.ss_aead = Some(ss_aead)
+        }
+        let mut aead = self.ss_aead.as_mut().expect("");
+        let result = encrypt(raw_data, aead)?;
+        self.stream.write_all(result.as_slice()).await
+    }
 }
 
 fn change_error(error: EncryptError) -> io::Error {
@@ -71,6 +79,13 @@ fn change_error(error: EncryptError) -> io::Error {
 fn decrypt(de_data: &[u8], ss_aead: &mut SsAead) -> io::Result<Vec<u8>> {
     match ss_aead.ss_decrypt(de_data) {
         Ok(de_data) => Ok(de_data),
+        Err(e) => Err(change_error(e)),
+    }
+}
+
+fn encrypt(raw_data: &[u8], ss_aead: &mut SsAead) -> io::Result<Vec<u8>> {
+    match ss_aead.ss_encrypt(raw_data) {
+        Ok(en_data) => Ok(en_data),
         Err(e) => Err(change_error(e)),
     }
 }

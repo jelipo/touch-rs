@@ -6,15 +6,12 @@ use async_std::prelude::*;
 use async_std::sync::Mutex;
 use async_std::task;
 use async_std::task::JoinHandle;
-use env_logger::fmt;
-use fantasy_util::time::system_time::SystemLocalTime;
 
 use crate::core::config::ConfigReader;
 use crate::core::profile::ProtocalType;
-use crate::encrypt::aead::AeadType;
-use crate::net::stream::{SsStreamReader, StreamReader};
+use crate::net::stream::{ SsStreamReader};
 use crate::socks::socks5::Socks5;
-use crate::socks::socks5_connector::Socks5Connector;
+use crate::net::proxy::ProxyStream;
 
 mod socks;
 mod ss;
