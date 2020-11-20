@@ -10,6 +10,7 @@ use crate::encrypt::error::EncryptError;
 use crate::encrypt::error::Result;
 use crate::encrypt::ss::{gen_master_key, generate_16_sub_key, generate_32_sub_key};
 
+
 pub struct SsAead {
     encryption: Box<dyn AeadEncrypt>,
     en_nonce: Nonce,

@@ -33,7 +33,7 @@ impl<'a> SsStreamReader<'a> {
         }
     }
 }
-#[async_trait(? )]
+
 #[async_trait(? Send)]
 impl ProxyStream for SsStreamReader<'_> {
     async fn read(&mut self) -> io::Result<Vec<u8>> {

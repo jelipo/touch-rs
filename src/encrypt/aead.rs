@@ -1,4 +1,3 @@
-
 use aes_gcm::{Aes128Gcm, Aes256Gcm};
 use aes_gcm::aead::{Aead, NewAead};
 use aes_gcm::aead::generic_array::GenericArray;

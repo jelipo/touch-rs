@@ -27,7 +27,7 @@ pub trait InputProxy {
 #[async_trait(? Send)]
 pub trait OutputProxy {
     /// Creat a new connect.
-    async fn new_connect(&mut self, proxy_info: ProxyInfo) -> Box<dyn ProxyStream>;
+    async fn new_connect(&mut self, proxy_info: ProxyInfo) -> Box<dyn ProxyStream + Send>;
 }
 
 #[async_trait(? Send)]

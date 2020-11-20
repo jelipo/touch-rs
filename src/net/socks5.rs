@@ -43,11 +43,11 @@ impl Socks5Passive {
     }
 
     async fn new_proxy(&mut self, input_stream: &mut TcpStream, info: ProxyInfo) -> io::Result<()> {
-        let mut out_stream = self.out_proxy.new_connect(info).await;
-        let input_stream_arc = Arc::new(input_stream);
-        let out_stream_arc = Arc::new(out_stream.as_mut());
-        let mut input_read = input_stream_arc.clone();
-        let mut input_write = input_stream_arc.clone();
+
+        let mut out_proxy_stream = self.out_proxy.new_connect(info).await;
+        let out_stream_arc = Arc::new(out_proxy_stream.as_mut());
+        let mut input_read = input_stream.clone();
+        let mut input_write = input_stream.clone();
         let mut output_read = out_stream_arc.clone();
         let mut output_write = out_stream_arc.clone();
 
