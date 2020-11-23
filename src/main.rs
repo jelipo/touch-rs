@@ -9,9 +9,9 @@ use async_std::task::JoinHandle;
 
 use crate::core::config::ConfigReader;
 use crate::core::profile::ProtocalType;
-use crate::net::stream::{ SsStreamReader};
+use crate::net::stream::{SsStreamReader};
 use crate::socks::socks5::Socks5;
-use crate::net::proxy::ProxyStream;
+use crate::net::proxy::ProxyReader;
 
 mod socks;
 mod ss;
@@ -36,7 +36,7 @@ async fn listen() -> io::Result<()> {
     let mut incoming = listener.incoming();
     let option = incoming.next().await;
     let mut stream = option.unwrap().unwrap();
-    let mut reader = SsStreamReader::new(&mut stream, b"test", &ProtocalType::SsAes256Gcm);
+    let mut reader = SsStreamReader::new(stream, b"test", ProtocalType::SsAes256Gcm);
     let vec = reader.read().await?;
     println!("Read:{:?}", vec);
     let de_data = vec.as_slice();

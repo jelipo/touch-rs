@@ -1,7 +1,7 @@
 use std::io::{Error, Result};
 
 use async_std::io::ErrorKind;
-use async_std::net::{SocketAddr, TcpStream};
+use async_std::net::{TcpStream};
 use async_std::prelude::*;
 
 use crate::net::AddressType;

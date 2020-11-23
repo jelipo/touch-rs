@@ -11,7 +11,7 @@ pub struct Profile {
 
 #[derive(Serialize, Deserialize)]
 pub struct ProtocolConf {
-    /// Protocal name
+    /// Protocol name
     pub name: ProtocalType,
     /// Active or Passive mode
     pub mode: Option<ConnectMode>,

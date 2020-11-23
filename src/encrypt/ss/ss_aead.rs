@@ -1,18 +1,13 @@
 use std::borrow::Borrow;
 
-use chacha20poly1305::ChaCha20Poly1305;
-use hkdf::Hkdf;
-use sha1::Sha1;
-
 use crate::core::profile::ProtocalType;
-use crate::encrypt::aead::{AeadAes128Gcm, AeadAes256Gcm, AeadChacha20Poly1305, AeadEncrypt, AeadType};
+use crate::encrypt::aead::{AeadAes128Gcm, AeadAes256Gcm, AeadChacha20Poly1305, AeadEncrypt};
 use crate::encrypt::error::EncryptError;
 use crate::encrypt::error::Result;
 use crate::encrypt::ss::{gen_master_key, generate_16_sub_key, generate_32_sub_key};
 
-
 pub struct SsAead {
-    encryption: Box<dyn AeadEncrypt>,
+    encryption: Box<dyn AeadEncrypt + Send>,
     en_nonce: Nonce,
     de_nonce: Nonce,
 }
@@ -26,7 +21,7 @@ impl SsAead {
     /// * `aead_type` - Aead type
     pub fn new(salt: &[u8], password: &[u8], aead_type: &ProtocalType) -> Result<Self> {
         let master_key = gen_master_key(password);
-        let encryption: Box<dyn AeadEncrypt> = match aead_type {
+        let encryption: Box<dyn AeadEncrypt + Send> = match aead_type {
             ProtocalType::SsAes128Gcm => {
                 let subkey = generate_16_sub_key(salt, &master_key)?;
                 Box::new(AeadAes128Gcm::new(&subkey))

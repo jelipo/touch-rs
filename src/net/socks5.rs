@@ -1,22 +1,21 @@
+use std::borrow::Borrow;
 use std::cell::RefCell;
-use std::io::{Read, Write};
 use std::rc::Rc;
 use std::str::FromStr;
-use async_std::prelude::*;
+
 use async_std::io;
 use async_std::io::{Error, ErrorKind};
 use async_std::io::ReadExt;
-use async_std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6, TcpListener, ToSocketAddrs, TcpStream};
+use async_std::net::{SocketAddr, SocketAddrV4, TcpListener, TcpStream};
+use async_std::prelude::*;
 use async_std::stream::StreamExt;
-use async_std::sync::Arc;
 use async_std::task::JoinHandle;
 use async_trait::async_trait;
 use log::{error, info, trace, warn};
 use serde::export::Result::Ok;
 
 use crate::core::profile::BasePassiveConfig;
-use crate::net::AddressType;
-use crate::net::proxy::{InputProxy, OutputProxy, ProxyInfo};
+use crate::net::proxy::{InputProxy, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
 use crate::socks::consts::Socks5Header;
 use crate::socks::socks5_connector::Socks5Connector;
 
@@ -41,46 +40,23 @@ impl Socks5Passive {
             out_proxy,
         })
     }
-
-    async fn new_proxy(&mut self, input_stream: &mut TcpStream, info: ProxyInfo) -> io::Result<()> {
-
-        let mut out_proxy_stream = self.out_proxy.new_connect(info).await;
-        let out_stream_arc = Arc::new(out_proxy_stream.as_mut());
-        let mut input_read = input_stream.clone();
-        let mut input_write = input_stream.clone();
-        let mut output_read = out_stream_arc.clone();
-        let mut output_write = out_stream_arc.clone();
-
-        let mut handle1: JoinHandle<()> = async_std::task::spawn(async move {
-            let mut buf = [0u8; 1024];
-            loop {
-                let size = input_read.read(&mut buf).await.unwrap();
-                output_write.write(&buf[0..size]).await.unwrap();
-            }
-        });
-        let mut handle2: JoinHandle<()> = async_std::task::spawn(async move {
-            loop {
-                let data = output_read.read().await.unwrap();
-                input_write.write_all(data.as_slice()).await.unwrap();
-            }
-        });
-        let x = handle1.await;
-        let x = handle2.await;
-        Ok(())
-    }
 }
+
 
 #[async_trait(? Send)]
 impl InputProxy for Socks5Passive {
-    async fn start(&mut self) {
+    async fn start(&mut self) -> io::Result<()> {
         let rc = Rc::new(RefCell::new(self));
         loop {
-            if let Some(Ok(mut tcpstream)) = rc.borrow().tcp_listerner.incoming().next().await {
+            let tcp: TcpStream = self.tcp_listerner.incoming().next().await.ok_or(
+                Err(Error::new(ErrorKind::InvalidInput, ""))
+            )?;
+            if let Some(Ok(mut tcpstream)) = rc.borrow_mut().tcp_listerner.incoming().next().await {
                 let mut connector = Socks5Connector::new(&mut tcpstream);
                 match connector.check().await {
                     Ok(proxy_info) => {
                         let rc1 = Rc::clone(&rc);
-                        if let Err(e) = rc1.borrow_mut().new_proxy(&mut tcpstream, proxy_info).await {
+                        if let Err(e) = new_proxy(&mut rc1.borrow_mut().out_proxy, &mut tcpstream, proxy_info).await {
                             error!("Socks5 proxy error. {}", e)
                         };
                     }
@@ -93,3 +69,42 @@ impl InputProxy for Socks5Passive {
     }
 }
 
+
+async fn new_proxy(out_proxy: &mut Box<dyn OutputProxy>, input_stream: &mut TcpStream, info: ProxyInfo) -> io::Result<()> {
+    let (mut out_reader, mut out_writer) =
+        out_proxy.new_connect(info).await;
+    let mut input_read = input_stream.clone();
+    let mut input_write = input_stream.clone();
+    let handle1 = async_std::task::spawn(async move {
+        read(input_read, out_writer).await
+    });
+    let handle2 = async_std::task::spawn(async move {
+        write(input_write, out_reader).await
+    });
+    let x = handle1.await;
+    let x = handle2.await;
+    Ok(())
+}
+
+
+async fn read(mut input_read: TcpStream, mut out_writer: Box<dyn ProxyWriter + Send>) -> io::Result<u64> {
+    let mut buf = [0u8; 4096];
+    let mut total = 0u64;
+    loop {
+        let size = input_read.read(&mut buf).await?;
+        if size == 0 { break; }
+        total = total + size;
+        out_writer.write(&buf[0..size]).await;
+    }
+    Ok(total)
+}
+
+async fn write(mut input_write: TcpStream, mut out_reader: Box<dyn ProxyReader + Send>) -> io::Result<u64> {
+    let mut total = 0u64;
+    loop {
+        let data = out_reader.read().await?;
+        total = total + data.len();
+        input_write.write_all(data.as_slice()).await?;
+    }
+    Ok(total)
+}

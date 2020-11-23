@@ -1,8 +1,8 @@
-use async_std::net::{SocketAddr, ToSocketAddrs};
+use async_std::io;
+use async_std::net::ToSocketAddrs;
 use async_trait::async_trait;
 
 use crate::net::AddressType;
-use async_std::io;
 
 pub struct Proxy<A: ToSocketAddrs> {
     addredd_type: AddressType,
@@ -21,21 +21,26 @@ impl<A: ToSocketAddrs> Proxy<A> {
 #[async_trait(? Send)]
 pub trait InputProxy {
     /// Start proxy.
-    async fn start(&mut self);
+    async fn start(&mut self) -> io::Result<()>;
 }
 
-#[async_trait(? Send)]
+#[async_trait]
 pub trait OutputProxy {
     /// Creat a new connect.
-    async fn new_connect(&mut self, proxy_info: ProxyInfo) -> Box<dyn ProxyStream + Send>;
+    async fn new_connect(&mut self, proxy_info: ProxyInfo)
+                         -> (Box<dyn ProxyReader + Send>, Box<dyn ProxyWriter + Send>);
 }
 
-#[async_trait(? Send)]
-pub trait ProxyStream {
+#[async_trait]
+pub trait ProxyReader {
     async fn read(&mut self) -> io::Result<Vec<u8>>;
+}
 
+#[async_trait]
+pub trait ProxyWriter {
     async fn write(&mut self, raw_data: &[u8]) -> io::Result<()>;
 }
+
 
 pub struct ProxyInfo {
     pub address_type: AddressType,

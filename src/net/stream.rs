@@ -1,4 +1,3 @@
-use std::borrow::BorrowMut;
 use std::io;
 
 use async_std::io::{ErrorKind, Read};
@@ -12,21 +11,21 @@ use crate::core::profile::ProtocalType;
 use crate::encrypt::aead::AeadType;
 use crate::encrypt::error::EncryptError;
 use crate::encrypt::ss::ss_aead::SsAead;
-use crate::net::proxy::ProxyStream;
+use crate::net::proxy::{ProxyReader, ProxyWriter};
 
-pub struct SsStreamReader<'a> {
-    stream: &'a mut TcpStream,
-    password: &'a [u8],
-    aead_type: &'a ProtocalType,
+pub struct SsStreamReader {
+    stream: TcpStream,
+    password: Vec<u8>,
+    aead_type: ProtocalType,
     ss_aead: Option<SsAead>,
     ss_len_buf: [u8; 18],
 }
 
-impl<'a> SsStreamReader<'a> {
-    pub fn new(stream: &'a mut TcpStream, password: &'a [u8], aead_type: &'a ProtocalType) -> Self {
+impl SsStreamReader {
+    pub fn new(stream: TcpStream, password: &[u8], aead_type: ProtocalType) -> Self {
         SsStreamReader {
             stream,
-            password,
+            password: password.to_vec(),
             aead_type,
             ss_aead: None,
             ss_len_buf: [0u8; 18],
@@ -34,34 +33,58 @@ impl<'a> SsStreamReader<'a> {
     }
 }
 
-#[async_trait(? Send)]
-impl ProxyStream for SsStreamReader<'_> {
+#[async_trait]
+impl ProxyReader for SsStreamReader {
     async fn read(&mut self) -> io::Result<Vec<u8>> {
         // Check if this is the first read. If first read,creat the SsAead.
         if self.ss_aead.is_none() {
             let mut salt = [0u8; 32];
             self.stream.read_exact(&mut salt).await?;
-            let ss_aead = SsAead::new(&salt, self.password, self.aead_type)
+            let ss_aead = SsAead::new(&salt, self.password.as_slice(), &self.aead_type)
                 .or_else(|e| { Err(change_error(e)) })?;
             self.ss_aead = Some(ss_aead)
         }
         // Read bytes and decrypt byte
         self.stream.read_exact(&mut self.ss_len_buf).await?;
         let mut aead = self.ss_aead.as_mut().expect("");
-        // Read 
+        // Read
         let len_vec = decrypt(&self.ss_len_buf, aead)?;
         let len = u16::from_be_bytes([len_vec[0], len_vec[1]]);
         let mut en_data = vec![0u8; (len + 16) as usize];
         self.stream.read_exact(&mut en_data).await?;
         decrypt(en_data.as_slice(), aead)
     }
+}
 
+
+pub struct SsStreamWriter {
+    stream: TcpStream,
+    password: Vec<u8>,
+    aead_type: ProtocalType,
+    ss_aead: Option<SsAead>,
+    ss_len_buf: [u8; 18],
+}
+
+impl SsStreamWriter {
+    pub fn new(stream: TcpStream, password: &[u8], aead_type: ProtocalType) -> Self {
+        SsStreamWriter {
+            stream,
+            password: password.to_vec(),
+            aead_type,
+            ss_aead: None,
+            ss_len_buf: [0u8; 18],
+        }
+    }
+}
+
+#[async_trait]
+impl ProxyWriter for SsStreamWriter {
     async fn write(&mut self, raw_data: &[u8]) -> io::Result<()> {
         // Check if this is the first read. If first read,creat the SsAead.
         if self.ss_aead.is_none() {
             // TODO Creat random slat.
             let mut salt = [0u8; 32];
-            let ss_aead = SsAead::new(&salt, self.password, self.aead_type)
+            let ss_aead = SsAead::new(&salt, self.password.as_slice(), &self.aead_type)
                 .or_else(|e| { Err(change_error(e)) })?;
             self.ss_aead = Some(ss_aead)
         }
