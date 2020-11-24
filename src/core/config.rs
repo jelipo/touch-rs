@@ -1,7 +1,6 @@
 use std::fs::File;
 use std::io;
 use std::io::{Error, ErrorKind};
-use std::io::Read;
 use std::net::Ipv4Addr;
 use std::path::Path;
 use std::result::Result::Err;

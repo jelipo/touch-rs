@@ -69,6 +69,4 @@ async fn proxy(client_stream: &mut TcpStream, remote_stream: &mut TcpStream, id:
     client_stream.shutdown(Shutdown::Both);
     remote_stream.shutdown(Shutdown::Both);
     handle1.await;
-    let mutex = Mutex::new("1");
-    mutex.lock();
 }

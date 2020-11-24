@@ -28,7 +28,7 @@ cfb-mode = "0.6.0"
 aes-gcm = "0.8.0"
 chacha20poly1305 = "0.7.1"
 
-async-std = "1.7.0"
+async-std = { version = "1.7.0", features = ["unstable"] }
 fantasy-util = "0.1.6"
 
 hkdf = "0.10"

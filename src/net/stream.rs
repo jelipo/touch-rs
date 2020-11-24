@@ -1,10 +1,9 @@
 use std::io;
 
-use async_std::io::{ErrorKind, Read};
+use async_std::io::ErrorKind;
 use async_std::io::ReadExt;
 use async_std::net::TcpStream;
 use async_std::prelude::*;
-use async_std::stream::Stream;
 use async_trait::async_trait;
 
 use crate::core::profile::ProtocalType;
