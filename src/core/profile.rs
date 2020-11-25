@@ -41,7 +41,7 @@ pub struct BasePassiveConfig {
     pub password: Option<String>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum ProtocalType {
     #[serde(alias = "original")]
     Original,
@@ -55,7 +55,7 @@ pub enum ProtocalType {
     Chacha20Poly1305,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum ConnectMode {
     #[serde(alias = "active")]
     Active,

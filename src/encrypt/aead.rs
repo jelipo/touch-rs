@@ -6,6 +6,7 @@ use chacha20poly1305::ChaCha20Poly1305;
 use crate::encrypt::error::EncryptError;
 use crate::encrypt::error::Result;
 
+#[derive(Copy, Clone)]
 pub enum AeadType {
     AES128GCM,
     AES256GCM,

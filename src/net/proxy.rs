@@ -27,8 +27,13 @@ pub trait InputProxy {
 #[async_trait]
 pub trait OutputProxy {
     /// Creat a new connect.
-    async fn new_connect(&mut self, proxy_info: ProxyInfo)
-                         -> (Box<dyn ProxyReader + Send>, Box<dyn ProxyWriter + Send>);
+    async fn new_connect(&mut self, proxy_info: ProxyInfo) ->
+    io::Result<(Box<dyn ProxyReader + Send>, Box<dyn ProxyWriter + Send>, Box<dyn Closer + Send>)>;
+}
+
+#[async_trait]
+pub trait Closer {
+    fn shutdown(&mut self) -> io::Result<()>;
 }
 
 #[async_trait]

@@ -2,29 +2,32 @@ use std::io;
 
 use async_std::io::ErrorKind;
 use async_std::io::ReadExt;
-use async_std::net::TcpStream;
+use async_std::net::{Shutdown, TcpStream};
 use async_std::prelude::*;
+use async_std_resolver::config::Protocol::Tcp;
 use async_trait::async_trait;
 
 use crate::core::profile::ProtocalType;
 use crate::encrypt::aead::AeadType;
 use crate::encrypt::error::EncryptError;
 use crate::encrypt::ss::ss_aead::SsAead;
-use crate::net::proxy::{ProxyReader, ProxyWriter};
+use crate::net::AddressType;
+use crate::net::proxy::{Closer, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
+use crate::util::address::Address;
 
 pub struct SsStreamReader {
     stream: TcpStream,
     password: Vec<u8>,
-    aead_type: ProtocalType,
+    aead_type: AeadType,
     ss_aead: Option<SsAead>,
     ss_len_buf: [u8; 18],
 }
 
 impl SsStreamReader {
-    pub fn new(stream: TcpStream, password: &[u8], aead_type: ProtocalType) -> Self {
+    pub fn new(stream: TcpStream, password: &str, aead_type: AeadType) -> Self {
         SsStreamReader {
             stream,
-            password: password.to_vec(),
+            password: password.as_bytes().to_vec(),
             aead_type,
             ss_aead: None,
             ss_len_buf: [0u8; 18],
@@ -59,16 +62,16 @@ impl ProxyReader for SsStreamReader {
 pub struct SsStreamWriter {
     stream: TcpStream,
     password: Vec<u8>,
-    aead_type: ProtocalType,
+    aead_type: AeadType,
     ss_aead: Option<SsAead>,
     ss_len_buf: [u8; 18],
 }
 
 impl SsStreamWriter {
-    pub fn new(stream: TcpStream, password: &[u8], aead_type: ProtocalType) -> Self {
+    pub fn new(stream: TcpStream, password: &str, aead_type: AeadType) -> Self {
         SsStreamWriter {
             stream,
-            password: password.to_vec(),
+            password: password.as_bytes().to_vec(),
             aead_type,
             ss_aead: None,
             ss_len_buf: [0u8; 18],
@@ -109,5 +112,47 @@ fn encrypt(raw_data: &[u8], ss_aead: &mut SsAead) -> io::Result<Vec<u8>> {
     match ss_aead.ss_encrypt(raw_data) {
         Ok(en_data) => Ok(en_data),
         Err(e) => Err(change_error(e)),
+    }
+}
+
+pub struct SsOutProxy {
+    ss_addr: String,
+    ss_port: u16,
+    password: String,
+    aead_type: AeadType,
+}
+
+impl SsOutProxy {
+    pub fn new(ss_addr: &str, ss_port: u16, password: &str, aead_type: &AeadType) -> Self {
+        Self {
+            ss_addr: ss_addr.to_string(),
+            ss_port,
+            password: password.to_string(),
+            aead_type: (*aead_type).clone(),
+        }
+    }
+}
+
+#[async_trait]
+impl OutputProxy for SsOutProxy {
+    async fn new_connect(&mut self, info: ProxyInfo) ->
+    io::Result<(Box<dyn ProxyReader + Send>, Box<dyn ProxyWriter + Send>, Box<dyn Closer + Send>)>
+    {
+        let addr = Address::ip_str(info.address.as_slice(), info.port, &info.address_type);
+        let tcpstream = TcpStream::connect(addr).await?;
+        let reader = SsStreamReader::new(tcpstream.clone(), self.password.as_str(), self.aead_type);
+        let writer = SsStreamWriter::new(tcpstream.clone(), self.password.as_str(), self.aead_type);
+        let closer = SsCloser { tcp_stream: tcpstream.clone() };
+        Ok((Box::new(reader), Box::new(writer), Box::new(closer)))
+    }
+}
+
+pub struct SsCloser {
+    tcp_stream: TcpStream
+}
+
+impl Closer for SsCloser {
+    fn shutdown(&mut self) -> io::Result<()> {
+        self.tcp_stream.shutdown(Shutdown::Both)
     }
 }

@@ -61,39 +61,50 @@ impl InputProxy for Socks5Passive {
 
 
 async fn new_proxy(out_proxy: &mut Box<dyn OutputProxy>, input_stream: &mut TcpStream, info: ProxyInfo) -> io::Result<()> {
-    let (mut out_reader, mut out_writer) =
-        out_proxy.new_connect(info).await;
-    let mut input_read = input_stream.clone();
-    let mut input_write = input_stream.clone();
+    let (mut out_reader, mut out_writer, mut closer) = out_proxy.new_connect(info).await?;
+    let input_read = input_stream.clone();
+    let input_write = input_stream.clone();
 
 
-    let read = async {
-        read(input_read, out_writer).await
-    };
-    let write = async {
+    let reader = async {
         write(input_write, out_reader).await
     };
-    let result = read.race(write).await;
-
+    let writer = async {
+        read(input_read, out_writer).await
+    };
+    // Wait for two future done.
+    let size = reader.race(writer).await;
+    input_stream.shutdown(Shutdown::Both);
+    closer.shutdown();
     Ok(())
 }
 
 
-async fn read(mut input_read: TcpStream, mut out_writer: Box<dyn ProxyWriter + Send>) -> io::Result<()> {
+async fn read(mut input_read: TcpStream, mut out_writer: Box<dyn ProxyWriter + Send>) -> usize {
     let mut buf = [0u8; 1024];
+    let mut total = 0;
     loop {
-        let size = input_read.read(&mut buf).await?;
+        let size = match input_read.read(&mut buf).await {
+            Ok(n) => n,
+            Err(_) => break,
+        };
         if size == 0 { break; }
-        out_writer.write(&buf[0..size]).await?;
+        total = total + size;
+        if out_writer.write(&buf[0..size]).await.is_err() { break; }
     }
-    Ok(())
+    total
 }
 
-async fn write(mut input_write: TcpStream, mut out_reader: Box<dyn ProxyReader + Send>) -> io::Result<()> {
+async fn write(mut input_write: TcpStream, mut out_reader: Box<dyn ProxyReader + Send>) -> usize {
+    let mut total = 0;
     loop {
-        let data = out_reader.read().await?;
+        let data = match out_reader.read().await {
+            Ok(n) => n,
+            Err(_) => break,
+        };
         if data.len() == 0 { break; }
-        input_write.write_all(data.as_slice()).await?;
+        total = total + data.len();
+        if input_write.write_all(data.as_slice()).await.is_err() { break; };
     }
-    Ok(())
+    total
 }
