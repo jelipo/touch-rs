@@ -1,6 +1,3 @@
-use std::borrow::Borrow;
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::str::FromStr;
 
 use async_std::future;
@@ -15,19 +12,19 @@ use async_trait::async_trait;
 use log::{error, info, trace, warn};
 
 use crate::core::profile::BasePassiveConfig;
-use crate::net::proxy::{InputProxy, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
+use crate::net::proxy::{Closer, InputProxy, OutProxyStarter, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
 use crate::socks::consts::Socks5Header;
 use crate::socks::socks5_connector::Socks5Connector;
 
 pub struct Socks5Passive {
     tcp_listerner: TcpListener,
     password: Option<String>,
-    out_proxy: Box<dyn OutputProxy>,
+    out_proxy: Box<dyn OutputProxy + Send>,
 }
 
 impl Socks5Passive {
     /// Init Socks5 Passive. And try to bind host and port
-    pub async fn new(passive: &BasePassiveConfig, out_proxy: Box<dyn OutputProxy>) -> io::Result<Self> {
+    pub async fn new(passive: &BasePassiveConfig, out_proxy: Box<dyn OutputProxy + Send>) -> io::Result<Self> {
         let addr_str = format!("{}:{}", &passive.local_host, passive.local_port);
         let addr = SocketAddr::from_str(addr_str.as_str()).or(
             Err(Error::new(ErrorKind::InvalidInput, "Error address"))
@@ -43,29 +40,40 @@ impl Socks5Passive {
 }
 
 
-#[async_trait(? Send)]
+#[async_trait]
 impl InputProxy for Socks5Passive {
     async fn start(&mut self) -> io::Result<()> {
+        println!("Sock5 start listen");
         loop {
+            let out_proxy = &mut self.out_proxy;
             let mut tcpstream: TcpStream = self.tcp_listerner.incoming().next().await.ok_or(
                 io::Error::new(ErrorKind::InvalidInput, "")
             )??;
             let mut connector = Socks5Connector::new(&mut tcpstream);
-            let proxy_info = connector.check().await?;
-            if let Err(e) = new_proxy(&mut self.out_proxy, &mut tcpstream, proxy_info).await {
-                error!("Socks5 proxy error. {}", e)
+            let info = match connector.check().await {
+                Ok(info) => info,
+                Err(_) => continue
             };
+            let mut starter = match out_proxy.gen_starter(info) {
+                Ok(n) => n,
+                Err(_) => continue
+            };
+            async_std::task::spawn(async move {
+                if let Err(e) = new_proxy(&mut tcpstream, starter).await {
+                    error!("Socks5 proxy error. {}", e)
+                };
+            });
         }
     }
 }
 
 
-async fn new_proxy(out_proxy: &mut Box<dyn OutputProxy>, input_stream: &mut TcpStream, info: ProxyInfo) -> io::Result<()> {
-    let (mut out_reader, mut out_writer, mut closer) = out_proxy.new_connect(info).await?;
+async fn new_proxy(input_stream: &mut TcpStream, mut starter: Box<dyn OutProxyStarter + Send>) -> io::Result<()> {
+    let (mut out_reader,
+        mut out_writer,
+        mut closer) = starter.new_connect().await?;
     let input_read = input_stream.clone();
     let input_write = input_stream.clone();
-
-
     let reader = async {
         write(input_write, out_reader).await
     };

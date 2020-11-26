@@ -1,6 +1,8 @@
-use crate::net::AddressType;
 use std::net::{Ipv4Addr, SocketAddrV4};
+
 use async_std::net::{Ipv6Addr, SocketAddrV6};
+
+use crate::net::AddressType;
 
 pub struct Address {}
 
@@ -11,7 +13,7 @@ impl Address {
                 let ipv4_addr = Ipv4Addr::new(ip_data[0], ip_data[1], ip_data[2], ip_data[3]);
                 SocketAddrV4::new(ipv4_addr, port).to_string()
             }
-            AddressType::Domain => String::from_utf8_lossy(ip_data).to_string(),
+            AddressType::Domain => format!("{}:{}", String::from_utf8_lossy(ip_data), port),
             AddressType::IPv6 => {
                 let mut ip_arr = [0u8; 16];
                 ip_arr.copy_from_slice(&ip_data[0..16]);

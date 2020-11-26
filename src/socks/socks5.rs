@@ -1,4 +1,6 @@
 use std::net::{Ipv6Addr, SocketAddrV6};
+use crate::net::AddressType;
+use std::borrow::Borrow;
 
 pub struct Socks5 {}
 
@@ -25,6 +27,31 @@ impl Socks5 {
                 let cow = String::from_utf8_lossy(&bytes[2..(domain_len + 2)]);
                 let port = u16::from_be_bytes([bytes[domain_len + 2], bytes[domain_len + 3]]);
                 (format!("{}:{}", cow, port), 4 + domain_len)
+            }
+        }
+    }
+
+    pub fn socks5_addr_arr(host: &Vec<u8>, port: u16, addr_type: &AddressType) -> Box<[u8]> {
+        match addr_type {
+            AddressType::IPv4 => {
+                let port_byte: [u8; 2] = port.to_be_bytes();
+                [1, host[0], host[1], host[2], host[3], port_byte[0], port_byte[1]].into()
+            }
+            AddressType::Domain => {
+                let host_len = host.len();
+                let mut vec = vec![0u8; host_len + 4];
+                vec[0] = 0x03;
+                vec[1] = host_len as u8;
+                vec[2..host_len + 2].copy_from_slice(host.borrow());
+                vec[host_len + 2..host_len + 4].copy_from_slice(&port.to_be_bytes());
+                println!("{:?}", vec);
+                vec.into()
+            }
+            AddressType::IPv6 => {
+                let mut arr = [4u8; 19];
+                arr[1..17].copy_from_slice(host.borrow());
+                arr[17..19].copy_from_slice(&port.to_be_bytes());
+                arr.into()
             }
         }
     }

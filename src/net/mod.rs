@@ -1,7 +1,7 @@
 pub mod ss_stream;
 pub mod proxy;
 mod connect;
-mod socks5;
+pub mod socks5;
 mod socks5_stream;
 
 

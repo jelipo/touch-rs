@@ -18,16 +18,21 @@ impl<A: ToSocketAddrs> Proxy<A> {
     }
 }
 
-#[async_trait(? Send)]
+#[async_trait]
 pub trait InputProxy {
     /// Start proxy.
     async fn start(&mut self) -> io::Result<()>;
 }
 
-#[async_trait]
+
 pub trait OutputProxy {
-    /// Creat a new connect.
-    async fn new_connect(&mut self, proxy_info: ProxyInfo) ->
+    /// Creat a new output proxy starter.
+    fn gen_starter(&mut self, proxy_info: ProxyInfo) -> io::Result<Box<dyn OutProxyStarter + Send>>;
+}
+
+#[async_trait]
+pub trait OutProxyStarter {
+    async fn new_connect(&mut self) ->
     io::Result<(Box<dyn ProxyReader + Send>, Box<dyn ProxyWriter + Send>, Box<dyn Closer + Send>)>;
 }
 
@@ -39,11 +44,15 @@ pub trait Closer {
 #[async_trait]
 pub trait ProxyReader {
     async fn read(&mut self) -> io::Result<Vec<u8>>;
+
+    async fn read_adderss(&mut self) -> io::Result<ProxyInfo>;
 }
 
 #[async_trait]
 pub trait ProxyWriter {
     async fn write(&mut self, raw_data: &[u8]) -> io::Result<()>;
+
+    async fn write_adderss(&mut self, info: &ProxyInfo) -> io::Result<()>;
 }
 
 
