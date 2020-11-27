@@ -108,7 +108,7 @@ async fn write(mut input_write: TcpStream, mut out_reader: Box<dyn ProxyReader +
         };
         if data.len() == 0 { break; }
         total = total + data.len();
-        if input_write.write_all(data.as_slice()).await.is_err() { break; };
+        if input_write.write_all(data.as_ref()).await.is_err() { break; };
     }
     total
 }

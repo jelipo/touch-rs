@@ -22,9 +22,10 @@ mod util;
 
 #[async_std::main]
 async fn main() -> io::Result<()> {
+    env_logger::init();
+
     //listen().await
 
-    env_logger::init();
     let path = Path::new("./conf/config.json");
     let reader = ConfigReader::read_config(path)?;
     ProtocalSelector::select(&reader).await

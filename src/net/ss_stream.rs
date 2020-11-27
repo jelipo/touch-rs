@@ -40,7 +40,7 @@ impl ProxyReader for SsStreamReader {
     async fn read(&mut self) -> io::Result<Vec<u8>> {
         // Check if this is the first read. If first read,creat the SsAead.
         if self.ss_aead.is_none() {
-            let aead = read_slat_to_aead(&self.aead_type, &mut self.stream, self.password.as_slice()).await?;
+            let aead = read_slat_to_aead(&self.aead_type, &mut self.stream, self.password.as_ref()).await?;
             self.ss_aead = Some(aead)
         }
         let aead = self.ss_aead.as_mut().unwrap();
@@ -50,7 +50,7 @@ impl ProxyReader for SsStreamReader {
         let len = u16::from_be_bytes([len_vec[0], len_vec[1]]);
         let mut en_data = vec![0u8; (len + 16) as usize];
         self.stream.read_exact(&mut en_data).await?;
-        decrypt(en_data.as_slice(), aead)
+        decrypt(en_data.as_ref(), aead)
     }
 
     async fn read_adderss(&mut self) -> io::Result<ProxyInfo> {
@@ -95,9 +95,9 @@ impl ProxyWriter for SsStreamWriter {
         let mut aead = &mut self.ss_aead;
         let len = raw_data.len() as u16;
         let len_en = encrypt(&len.to_be_bytes(), aead)?;
-        self.stream.write_all(len_en.as_slice()).await?;
+        self.stream.write_all(len_en.as_ref()).await?;
         let en_data = encrypt(raw_data, aead)?;
-        self.stream.write_all(en_data.as_slice()).await
+        self.stream.write_all(en_data.as_ref()).await
     }
 
     async fn write_adderss(&mut self, info: &ProxyInfo) -> io::Result<()> {

@@ -98,9 +98,6 @@ fn aead_encrypt<T: Aead>(cipher: &T, nonce: &[u8], data: &[u8]) -> Result<Vec<u8
 /// Aead Decrypt
 fn aead_decrypt<T: Aead>(cipher: &T, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>> {
     let nonce = GenericArray::from_slice(nonce);
-    let vec1 = vec![0u8; 128];
-    let x = vec1.as_slice();
-    let vec2 = [0u8; 32].to_vec();
     cipher.decrypt(nonce, data).or(Err(EncryptError::DecryptErr))
 }
 
