@@ -44,7 +44,6 @@ impl Socks5 {
                 vec[1] = host_len as u8;
                 vec[2..host_len + 2].copy_from_slice(host.borrow());
                 vec[host_len + 2..host_len + 4].copy_from_slice(&port.to_be_bytes());
-                println!("{:?}", vec);
                 vec.into()
             }
             AddressType::IPv6 => {

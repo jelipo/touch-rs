@@ -87,11 +87,12 @@ impl SsStreamWriter {
 impl ProxyWriter for SsStreamWriter {
     async fn write(&mut self, raw_data: &[u8]) -> io::Result<()> {
         let mut aead = &mut self.ss_aead;
-        let len = raw_data.len();
+        let len = raw_data.len() as u16;
         let len_en = encrypt(&len.to_be_bytes(), aead)?;
         let result = encrypt(raw_data, aead)?;
         self.stream.write_all(len_en.as_slice()).await?;
-        println!("写完len {}    {:?}", len, len_en);
+        println!("raw_data: {:?} raw_data_len {}", raw_data, raw_data.len());
+        println!("写完len   en_data: {:?} endata_len: {}", len_en, len_en.len());
         self.stream.write_all(result.as_slice()).await?;
         println!("写完data {:?}", result);
         Ok(())

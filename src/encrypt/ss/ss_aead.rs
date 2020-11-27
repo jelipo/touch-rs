@@ -86,6 +86,8 @@ mod tests {
         let en_data = Box::new(ss_aead.ss_encrypt(&de_data).unwrap());
         let de_data2 = Box::new(ss_aead.ss_decrypt(en_data.as_slice()).unwrap());
         assert_eq!(&de_data, de_data2.as_slice());
+
+        let a = [79, 226, 77, 202, 166, 98, 119, 61, 103, 254, 52, 9, 199, 87, 152, 82, 167, 88, 101, 27, 240, 128, 145, 74];
     }
 
     #[test]
