@@ -7,12 +7,11 @@ use async_std::task;
 use async_std::task::JoinHandle;
 
 use crate::core::config::ConfigReader;
+use crate::core::selector::ProtocalSelector;
 use crate::encrypt::aead::AeadType;
 use crate::net::proxy::ProxyReader;
 use crate::net::ss_stream::SsStreamReader;
 use crate::socks::socks5::Socks5;
-use crate::core::selector::ProtocalSelector;
-use crate::encrypt::ss::ss_aead::SsAead;
 
 mod socks;
 mod ss;
@@ -23,6 +22,8 @@ mod util;
 
 #[async_std::main]
 async fn main() -> io::Result<()> {
+    //listen().await
+
     env_logger::init();
     let path = Path::new("./conf/config.json");
     let reader = ConfigReader::read_config(path)?;
@@ -34,18 +35,13 @@ async fn listen() -> io::Result<()> {
     let mut incoming = listener.incoming();
     let option: Option<io::Result<TcpStream>> = incoming.next().await;
     let mut stream = option.unwrap().unwrap();
-    //
-    let passowrd = "test";
-    let mut salt = [0u8; 32];
-    stream.read_exact(&mut salt).await?;
-    let ss_aead = SsAead::new(salt.into(), passowrd.as_ref(), &AeadType::AES256GCM).unwrap();
 
-    let mut reader = SsStreamReader::new(stream, "test", AeadType::AES256GCM, ss_aead);
+    let mut reader = SsStreamReader::new(stream, "test", AeadType::AES256GCM);
     let vec = reader.read().await?;
     println!("Read:{:?}", vec);
     let de_data = vec.as_slice();
     let addrs = Socks5::read_to_socket_addrs(de_data);
-    println!("{:?}", addrs);
+    println!("addr {:?}", addrs);
     let data = &de_data[(addrs.1)..de_data.len()];
     println!("{:?}", String::from_utf8(data.to_vec()).unwrap().as_str());
     Ok(())

@@ -6,30 +6,30 @@ use async_std::io::ReadExt;
 use async_std::net::{Shutdown, TcpStream};
 use async_std::prelude::*;
 use async_trait::async_trait;
-use log::{error, info, trace, warn};
+use log::{debug, error, info, trace, warn};
 
 use crate::encrypt::aead::AeadType;
 use crate::encrypt::error::EncryptError;
 use crate::encrypt::ss::ss_aead::SsAead;
 use crate::net::proxy::{Closer, OutProxyStarter, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
 use crate::socks::socks5::Socks5;
-use crate::util::address::Address;
+
 
 pub struct SsStreamReader {
     stream: TcpStream,
     password: Vec<u8>,
     aead_type: AeadType,
-    ss_aead: SsAead,
+    ss_aead: Option<SsAead>,
     ss_len_buf: [u8; 18],
 }
 
 impl SsStreamReader {
-    pub fn new(stream: TcpStream, password: &str, aead_type: AeadType, ss_aead: SsAead) -> Self {
+    pub fn new(stream: TcpStream, password: &str, aead_type: AeadType) -> Self {
         SsStreamReader {
             stream,
             password: password.as_bytes().to_vec(),
             aead_type,
-            ss_aead,
+            ss_aead: None,
             ss_len_buf: [0u8; 18],
         }
     }
@@ -38,18 +38,14 @@ impl SsStreamReader {
 #[async_trait]
 impl ProxyReader for SsStreamReader {
     async fn read(&mut self) -> io::Result<Vec<u8>> {
-        // // //Check if this is the first read. If first read,creat the SsAead.
-        // if self.ss_aead.is_none() {
-        //     let mut salt = [0u8; 32];
-        //     self.stream.read_exact(&mut salt).await?;
-        //     let ss_aead = SsAead::new(&salt, self.password.as_slice(), &self.aead_type)
-        //         .or_else(|e| { Err(change_error(e)) })?;
-        //     self.ss_aead = Some(ss_aead)
-        // }
+        // Check if this is the first read. If first read,creat the SsAead.
+        if self.ss_aead.is_none() {
+            let aead = read_slat_to_aead(&self.aead_type, &mut self.stream, self.password.as_slice()).await?;
+            self.ss_aead = Some(aead)
+        }
+        let aead = self.ss_aead.as_mut().unwrap();
         //Read bytes and decrypt byte
         self.stream.read_exact(&mut self.ss_len_buf).await?;
-        let aead = &mut self.ss_aead;
-        // Read
         let len_vec = decrypt(&self.ss_len_buf, aead)?;
         let len = u16::from_be_bytes([len_vec[0], len_vec[1]]);
         let mut en_data = vec![0u8; (len + 16) as usize];
@@ -62,6 +58,14 @@ impl ProxyReader for SsStreamReader {
     }
 }
 
+async fn read_slat_to_aead(aead_type: &AeadType, tcpstream: &mut TcpStream, password: &[u8]) -> io::Result<SsAead> {
+    let mut salt: Box<[u8]> = match aead_type {
+        AeadType::AES128GCM => [0u8; 16].into(),
+        AeadType::AES256GCM | AeadType::Chacha20Poly1305 => [0u8; 32].into()
+    };
+    tcpstream.read_exact(&mut salt).await?;
+    SsAead::new(salt.into(), password, aead_type).or_else(|e| { Err(change_error(e)) })
+}
 
 pub struct SsStreamWriter {
     stream: TcpStream,
@@ -69,6 +73,7 @@ pub struct SsStreamWriter {
     aead_type: AeadType,
     ss_aead: SsAead,
     ss_len_buf: [u8; 18],
+    addr_arr: Option<Box<[u8]>>,
 }
 
 impl SsStreamWriter {
@@ -79,6 +84,7 @@ impl SsStreamWriter {
             aead_type,
             ss_aead,
             ss_len_buf: [0u8; 18],
+            addr_arr: None,
         }
     }
 }
@@ -89,28 +95,20 @@ impl ProxyWriter for SsStreamWriter {
         let mut aead = &mut self.ss_aead;
         let len = raw_data.len() as u16;
         let len_en = encrypt(&len.to_be_bytes(), aead)?;
-        let result = encrypt(raw_data, aead)?;
         self.stream.write_all(len_en.as_slice()).await?;
-        println!("raw_data: {:?} raw_data_len {}", raw_data, raw_data.len());
-        println!("写完len   en_data: {:?} endata_len: {}", len_en, len_en.len());
-        self.stream.write_all(result.as_slice()).await?;
-        println!("写完data {:?}", result);
-        Ok(())
+        let en_data = encrypt(raw_data, aead)?;
+        self.stream.write_all(en_data.as_slice()).await
     }
 
     async fn write_adderss(&mut self, info: &ProxyInfo) -> io::Result<()> {
-        println!("address salt {:?}", self.ss_aead.salt.as_ref());
         self.stream.write_all(self.ss_aead.salt.borrow()).await?;
-        println!("写完salt");
         let addr_arr = Socks5::socks5_addr_arr(info.address.as_ref(), info.port, &info.address_type);
-        self.write(addr_arr.borrow()).await?;
-        println!("写完address");
-        Ok(())
+        self.write(addr_arr.borrow()).await
     }
 }
 
 fn change_error(error: EncryptError) -> io::Error {
-    println!("Stream encrypt error: {}", error);
+    error!("Stream encrypt error: {}", error);
     io::Error::from(ErrorKind::InvalidInput)
 }
 
@@ -171,18 +169,16 @@ pub struct SsOutProxyStarter {
 impl OutProxyStarter for SsOutProxyStarter {
     async fn new_connect(&mut self) ->
     io::Result<(Box<dyn ProxyReader + Send>, Box<dyn ProxyWriter + Send>, Box<dyn Closer + Send>)> {
+        debug!("new connect");
         let addr = format!("{}:{}", self.ss_addr, self.ss_port);
         let output_stream = TcpStream::connect(addr).await?;
-        // TODO Creat a random salt
-        let (read_salt, write_salt) = gen_random_salt(&self.aead_type);
-
-        let read_ss_aead = SsAead::new(read_salt, self.password.as_bytes(), &self.aead_type)
-            .or_else(|e| { Err(change_error(e)) })?;
+        // Creat a random salt
+        let write_salt = gen_random_salt(&self.aead_type);
         let write_ss_aead = SsAead::new(write_salt, self.password.as_bytes(), &self.aead_type)
             .or_else(|e| { Err(change_error(e)) })?;
 
         let reader = SsStreamReader::new(
-            output_stream.clone(), self.password.as_str(), self.aead_type, read_ss_aead);
+            output_stream.clone(), self.password.as_str(), self.aead_type);
         let mut writer = SsStreamWriter::new(
             output_stream.clone(), self.password.as_str(), self.aead_type, write_ss_aead);
         let closer = SsCloser { tcp_stream: output_stream.clone() };
@@ -203,10 +199,11 @@ impl Closer for SsCloser {
 }
 
 
-fn gen_random_salt(aead_type: &AeadType) -> (Box<[u8]>, Box<[u8]>) {
+fn gen_random_salt(aead_type: &AeadType) -> Box<[u8]> {
+    let array: [u8; 32] = rand::random();
     match aead_type {
-        AeadType::AES128GCM => ([0u8; 16].into(), [0u8; 16].into()),
-        AeadType::AES256GCM => ([0u8; 32].into(), [0u8; 32].into()),
-        AeadType::Chacha20Poly1305 => ([0u8; 32].into(), [0u8; 32].into()),
+        AeadType::AES128GCM => array[0..16].into(),
+        AeadType::AES256GCM => array[0..32].into(),
+        AeadType::Chacha20Poly1305 => array[0..32].into(),
     }
 }

@@ -1,13 +1,10 @@
 use std::str::FromStr;
 
-use async_std::future;
-use async_std::future::*;
 use async_std::io;
 use async_std::io::{Error, ErrorKind};
 use async_std::io::ReadExt;
-use async_std::net::{Shutdown, SocketAddr, SocketAddrV4, TcpListener, TcpStream};
+use async_std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
 use async_std::prelude::*;
-use async_std::task::JoinHandle;
 use async_trait::async_trait;
 use log::{error, info, trace, warn};
 
@@ -83,8 +80,7 @@ async fn new_proxy(input_stream: &mut TcpStream, mut starter: Box<dyn OutProxySt
     // Wait for two future done.
     let size = reader.race(writer).await;
     input_stream.shutdown(Shutdown::Both);
-    closer.shutdown();
-    Ok(())
+    closer.shutdown()
 }
 
 

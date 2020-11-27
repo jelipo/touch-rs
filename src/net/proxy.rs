@@ -56,6 +56,7 @@ pub trait ProxyWriter {
 }
 
 
+#[derive(Clone)]
 pub struct ProxyInfo {
     pub address_type: AddressType,
     pub address: Box<Vec<u8>>,

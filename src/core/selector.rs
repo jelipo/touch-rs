@@ -16,7 +16,7 @@ impl ProtocalSelector {
         let output_proxy = select_output(&config_reader.output)?;
         let mut input_proxy = select_input(&config_reader.input, output_proxy).await?;
         // Start proxy
-        input_proxy.start().await;
+        input_proxy.start().await?;
         Ok(())
     }
 }

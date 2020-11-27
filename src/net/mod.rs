@@ -5,7 +5,7 @@ pub mod socks5;
 mod socks5_stream;
 
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum AddressType {
     IPv4,
     Domain,

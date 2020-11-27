@@ -82,12 +82,17 @@ mod tests {
         let slat = [0u8; 32];
         let mut ss_aead = SsAead::new(slat.into(), b"test",
                                       &AeadType::AES256GCM).unwrap();
-        let de_data: [u8; 2] = (1024 as u16).to_be_bytes();
-        let en_data = Box::new(ss_aead.ss_encrypt(&de_data).unwrap());
-        let de_data2 = Box::new(ss_aead.ss_decrypt(en_data.as_slice()).unwrap());
-        assert_eq!(&de_data, de_data2.as_slice());
+        // let de_data: [u8; 2] = (1024 as u16).to_be_bytes();
+        // let en_data = Box::new(ss_aead.ss_encrypt(&de_data).unwrap());
+        // let de_data2 = Box::new(ss_aead.ss_decrypt(en_data.as_slice()).unwrap());
+        // assert_eq!(&de_data, de_data2.as_slice());
 
-        let a = [79, 226, 77, 202, 166, 98, 119, 61, 103, 254, 52, 9, 199, 87, 152, 82, 167, 88, 101, 27, 240, 128, 145, 74];
+        let en_len: [u8; 18] = [79, 242, 226, 103, 166, 113, 26, 155, 7, 208, 3, 77, 132, 230, 124, 60, 101, 126];
+        let en_data: [u8; 32] = [5, 114, 50, 114, 2, 92, 135, 90, 129, 40, 16, 92, 160, 128, 56, 206, 33, 217, 226, 18, 9, 72, 101, 239, 23, 33, 97, 102, 199, 121, 111, 136];
+        let de_len = Box::new(ss_aead.ss_decrypt(&en_len).unwrap());
+        println!("de_len {:?}", de_len);
+        let de_data = Box::new(ss_aead.ss_decrypt(&en_data).unwrap());
+        println!("de_data {:?}", de_data);
     }
 
     #[test]
@@ -104,7 +109,7 @@ mod tests {
     #[test]
     fn ss_chacha20poly1305_test() {
         let slat = [0u8; 32];
-        let mut ss_aead = SsAead::new(Box::new(*slat), b"test",
+        let mut ss_aead = SsAead::new(slat.into(), b"test",
                                       &AeadType::Chacha20Poly1305).unwrap();
         let de_data: [u8; 2] = (1024 as u16).to_be_bytes();
         let en_data = Box::new(ss_aead.ss_encrypt(&de_data).unwrap());
