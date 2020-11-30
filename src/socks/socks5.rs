@@ -31,6 +31,9 @@ impl Socks5 {
         }
     }
 
+    /// Change address to socks5 bytes.
+    /// # Example
+    /// host:127.0.0.1 port:80 ---->  [1,127,0,0,1,0,80]
     pub fn socks5_addr_arr(host: &Vec<u8>, port: u16, addr_type: &AddressType) -> Box<[u8]> {
         match addr_type {
             AddressType::IPv4 => {

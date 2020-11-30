@@ -112,8 +112,8 @@ mod tests {
     #[test]
     fn aes256gcm_test() -> Result<(), EncryptError> {
         let plain_text = b"hello";
-        let salt = [0u8; 32];
-        let master_key = plain_text;
+        let _salt = [0u8; 32];
+        let _master_key = plain_text;
         let subkey = [0u8; 32];
         let aes256gcm = AeadAes256Gcm::new(&subkey);
         let en_vec = aes256gcm.encrypt(&NONCE, plain_text)?;
@@ -125,8 +125,8 @@ mod tests {
     #[test]
     fn aes128gcm_test() -> Result<(), EncryptError> {
         let plain_text = b"hello";
-        let salt = [0u8; 16];
-        let master_key = plain_text;
+        let _salt = [0u8; 16];
+        let _master_key = plain_text;
         let subkey = [0u8; 16];
         let aes128gcm = AeadAes128Gcm::new(&subkey);
         let en_vec = aes128gcm.encrypt(&NONCE, plain_text)?;
@@ -138,8 +138,8 @@ mod tests {
     #[test]
     fn chacha20poly1305_test() -> Result<(), EncryptError> {
         let plain_text = b"hello";
-        let salt = [0u8; 32];
-        let master_key = plain_text;
+        let _salt = [0u8; 32];
+        let _master_key = plain_text;
         let subkey = [0u8; 32];
         let chacha20poly1305 = AeadChacha20Poly1305::new(&subkey);
         let en_vec = chacha20poly1305.encrypt(&NONCE, plain_text)?;

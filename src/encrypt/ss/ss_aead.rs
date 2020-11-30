@@ -73,7 +73,7 @@ impl Nonce {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::profile::ProtocalType;
+    
     use crate::encrypt::aead::AeadType;
     use crate::encrypt::ss::ss_aead::SsAead;
 

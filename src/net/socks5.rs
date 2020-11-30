@@ -6,11 +6,11 @@ use async_std::io::ReadExt;
 use async_std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
 use async_std::prelude::*;
 use async_trait::async_trait;
-use log::{error, info, trace, warn};
+use log::{error, info};
 
 use crate::core::profile::BasePassiveConfig;
-use crate::net::proxy::{Closer, InputProxy, OutProxyStarter, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
-use crate::socks::consts::Socks5Header;
+use crate::net::proxy::{Closer, InputProxy, OutProxyStarter, OutputProxy, ProxyReader, ProxyWriter};
+
 use crate::socks::socks5_connector::Socks5Connector;
 
 pub struct Socks5Passive {
@@ -51,7 +51,7 @@ impl InputProxy for Socks5Passive {
                 Ok(info) => info,
                 Err(_) => continue
             };
-            let mut starter = match out_proxy.gen_starter(info) {
+            let starter = match out_proxy.gen_starter(info) {
                 Ok(n) => n,
                 Err(_) => continue
             };
@@ -66,8 +66,8 @@ impl InputProxy for Socks5Passive {
 
 
 async fn new_proxy(input_stream: &mut TcpStream, mut starter: Box<dyn OutProxyStarter + Send>) -> io::Result<()> {
-    let (mut out_reader,
-        mut out_writer,
+    let (out_reader,
+        out_writer,
         mut closer) = starter.new_connect().await?;
     let input_read = input_stream.clone();
     let input_write = input_stream.clone();
@@ -78,9 +78,10 @@ async fn new_proxy(input_stream: &mut TcpStream, mut starter: Box<dyn OutProxySt
         read(input_read, out_writer).await
     };
     // Wait for two future done.
-    let size = reader.race(writer).await;
-    input_stream.shutdown(Shutdown::Both);
-    closer.shutdown()
+    let _size = reader.race(writer).await;
+    let _sd_rs = input_stream.shutdown(Shutdown::Both);
+    let _closer_rs = closer.shutdown();
+    Ok(())
 }
 
 

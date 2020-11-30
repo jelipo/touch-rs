@@ -6,14 +6,13 @@ use async_std::io::ReadExt;
 use async_std::net::{Shutdown, TcpStream};
 use async_std::prelude::*;
 use async_trait::async_trait;
-use log::{debug, error, info, trace, warn};
+use log::{debug, error};
 
 use crate::encrypt::aead::AeadType;
 use crate::encrypt::error::EncryptError;
 use crate::encrypt::ss::ss_aead::SsAead;
 use crate::net::proxy::{Closer, OutProxyStarter, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
 use crate::socks::socks5::Socks5;
-
 
 pub struct SsStreamReader {
     stream: TcpStream,
@@ -35,6 +34,8 @@ impl SsStreamReader {
     }
 }
 
+/// Shadowsocks TCP Reader.
+/// First, it will read a 16/32 bytes of salt.
 #[async_trait]
 impl ProxyReader for SsStreamReader {
     async fn read(&mut self) -> io::Result<Vec<u8>> {
@@ -72,7 +73,6 @@ pub struct SsStreamWriter {
     password: Vec<u8>,
     aead_type: AeadType,
     ss_aead: SsAead,
-    ss_len_buf: [u8; 18],
     addr_arr: Option<Box<[u8]>>,
 }
 
@@ -83,7 +83,6 @@ impl SsStreamWriter {
             password: password.as_bytes().to_vec(),
             aead_type,
             ss_aead,
-            ss_len_buf: [0u8; 18],
             addr_arr: None,
         }
     }
@@ -92,7 +91,7 @@ impl SsStreamWriter {
 #[async_trait]
 impl ProxyWriter for SsStreamWriter {
     async fn write(&mut self, raw_data: &[u8]) -> io::Result<()> {
-        let mut aead = &mut self.ss_aead;
+        let aead = &mut self.ss_aead;
         let len = raw_data.len() as u16;
         let len_en = encrypt(&len.to_be_bytes(), aead)?;
         self.stream.write_all(len_en.as_ref()).await?;
@@ -126,6 +125,7 @@ fn encrypt(raw_data: &[u8], ss_aead: &mut SsAead) -> io::Result<Vec<u8>> {
     }
 }
 
+//------------------------------SS_OUT_PROXY-----------------------------------------
 
 pub struct SsOutProxy {
     ss_addr: String,
@@ -187,7 +187,9 @@ impl OutProxyStarter for SsOutProxyStarter {
         Ok((Box::new(reader), Box::new(writer), Box::new(closer)))
     }
 }
+//<--<--<--<--<--<--<--<--<--<--<--<--SS_OUT_PROXY--<--<--<--<--<--<--<--<--<--<--<--<
 
+//>-->-->-->-->-->-->-->-->-->-->-->--SS_CLOSER-->-->-->-->-->-->-->-->-->-->-->-->
 pub struct SsCloser {
     tcp_stream: TcpStream
 }
@@ -197,13 +199,25 @@ impl Closer for SsCloser {
         self.tcp_stream.shutdown(Shutdown::Both)
     }
 }
+//<--<--<--<--<--<--<--<--<--<--<--<--SS_CLOSER--<--<--<--<--<--<--<--<--<--<--<--<
 
+//>-->-->-->-->-->-->-->-->-->-->-->--SS_INPUT_PROXY-->-->-->-->-->-->-->-->-->-->-->-->
+// pub struct SsCloser {
+//     tcp_stream: TcpStream
+// }
+//
+// impl Closer for SsCloser {
+//     fn shutdown(&mut self) -> io::Result<()> {
+//         self.tcp_stream.shutdown(Shutdown::Both)
+//     }
+// }
+//<--<--<--<--<--<--<--<--<--<--<--<--SS_INPUT_PROXY--<--<--<--<--<--<--<--<--<--<--<--<
 
+/// Generate a Shadowsocks salt
 fn gen_random_salt(aead_type: &AeadType) -> Box<[u8]> {
-    let array: [u8; 32] = rand::random();
     match aead_type {
-        AeadType::AES128GCM => array[0..16].into(),
-        AeadType::AES256GCM => array[0..32].into(),
-        AeadType::Chacha20Poly1305 => array[0..32].into(),
+        AeadType::AES128GCM => rand::random::<[u8; 16]>().into(),
+        AeadType::AES256GCM => rand::random::<[u8; 32]>().into(),
+        AeadType::Chacha20Poly1305 => rand::random::<[u8; 32]>().into()
     }
 }

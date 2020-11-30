@@ -5,11 +5,11 @@ use std::net::Ipv4Addr;
 use std::path::Path;
 use std::result::Result::Err;
 
-use log::{error, info, trace, warn};
+use log::{error};
 
 use crate::core::profile::{Profile, ProtocolConf};
 use crate::util::dns::Dns;
-use async_std_resolver::{resolver, config};
+
 
 pub struct ConfigReader {
     pub dns: Option<Ipv4Addr>,
@@ -34,7 +34,7 @@ impl ConfigReader {
 
 fn read_file(path: &Path) -> io::Result<Profile> {
     let file_max_size: u64 = 1 * 1024 * 1024;
-    let mut file = File::open(path)?;
+    let file = File::open(path)?;
     let metadata = file.metadata()?;
     if metadata.len() > file_max_size {
         let err = format!("The file is too large,MAX_FILE_SZIE:{}KB", file_max_size / 1024);

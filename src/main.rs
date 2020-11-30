@@ -35,7 +35,7 @@ async fn listen() -> io::Result<()> {
     let listener = TcpListener::bind("127.0.0.1:3391").await.unwrap();
     let mut incoming = listener.incoming();
     let option: Option<io::Result<TcpStream>> = incoming.next().await;
-    let mut stream = option.unwrap().unwrap();
+    let stream = option.unwrap().unwrap();
 
     let mut reader = SsStreamReader::new(stream, "test", AeadType::AES256GCM);
     let vec = reader.read().await?;
@@ -52,7 +52,7 @@ async fn start() -> io::Result<()> {
     Ok(())
 }
 
-async fn proxy(client_stream: &mut TcpStream, remote_stream: &mut TcpStream, id: u64) {
+async fn proxy(client_stream: &mut TcpStream, remote_stream: &mut TcpStream, _id: u64) {
     let mut client_read = client_stream.clone();
     let mut client_write = client_stream.clone();
     let mut remote_read = remote_stream.clone();
