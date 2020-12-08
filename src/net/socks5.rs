@@ -10,7 +10,6 @@ use log::{error, info};
 
 use crate::core::profile::BasePassiveConfig;
 use crate::net::proxy::{Closer, InputProxy, OutProxyStarter, OutputProxy, ProxyReader, ProxyWriter};
-
 use crate::socks::socks5_connector::Socks5Connector;
 
 pub struct Socks5Passive {
@@ -40,7 +39,7 @@ impl Socks5Passive {
 #[async_trait]
 impl InputProxy for Socks5Passive {
     async fn start(&mut self) -> io::Result<()> {
-        println!("Sock5 start listen");
+        info!("Sock5 start listen");
         loop {
             let out_proxy = &mut self.out_proxy;
             let mut tcpstream: TcpStream = self.tcp_listerner.incoming().next().await.ok_or(
@@ -84,15 +83,10 @@ async fn new_proxy(input_stream: &mut TcpStream, mut starter: Box<dyn OutProxySt
     Ok(())
 }
 
-
 async fn read(mut input_read: TcpStream, mut out_writer: Box<dyn ProxyWriter + Send>) -> usize {
     let mut buf = [0u8; 1024];
     let mut total = 0;
-    loop {
-        let size = match input_read.read(&mut buf).await {
-            Ok(n) => n,
-            Err(_) => break,
-        };
+    while let Ok(size) = input_read.read(&mut buf).await {
         if size == 0 { break; }
         total = total + size;
         if out_writer.write(&buf[0..size]).await.is_err() { break; }
@@ -102,11 +96,7 @@ async fn read(mut input_read: TcpStream, mut out_writer: Box<dyn ProxyWriter + S
 
 async fn write(mut input_write: TcpStream, mut out_reader: Box<dyn ProxyReader + Send>) -> usize {
     let mut total = 0;
-    loop {
-        let data = match out_reader.read().await {
-            Ok(n) => n,
-            Err(_) => break,
-        };
+    while let Ok(data) = out_reader.read().await {
         if data.len() == 0 { break; }
         total = total + data.len();
         if input_write.write_all(data.as_ref()).await.is_err() { break; };

@@ -1,17 +1,20 @@
 use std::borrow::Borrow;
 use std::io;
+use std::io::Error;
+use std::str::FromStr;
 
 use async_std::io::ErrorKind;
 use async_std::io::ReadExt;
-use async_std::net::{Shutdown, TcpStream};
+use async_std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
 use async_std::prelude::*;
 use async_trait::async_trait;
-use log::{debug, error};
+use log::{debug, error, info};
 
+use crate::core::profile::{BasePassiveConfig, ProtocalType};
 use crate::encrypt::aead::AeadType;
 use crate::encrypt::error::EncryptError;
 use crate::encrypt::ss::ss_aead::SsAead;
-use crate::net::proxy::{Closer, OutProxyStarter, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
+use crate::net::proxy::{Closer, InputProxy, OutProxyStarter, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
 use crate::socks::socks5::Socks5;
 
 pub struct SsStreamReader {
@@ -201,16 +204,65 @@ impl Closer for SsCloser {
 }
 //<--<--<--<--<--<--<--<--<--<--<--<--SS_CLOSER--<--<--<--<--<--<--<--<--<--<--<--<
 
+
 //>-->-->-->-->-->-->-->-->-->-->-->--SS_INPUT_PROXY-->-->-->-->-->-->-->-->-->-->-->-->
-// pub struct SsCloser {
-//     tcp_stream: TcpStream
-// }
-//
-// impl Closer for SsCloser {
-//     fn shutdown(&mut self) -> io::Result<()> {
-//         self.tcp_stream.shutdown(Shutdown::Both)
-//     }
-// }
+
+pub struct SsInputProxy {
+    tcp_listerner: TcpListener,
+    password: Option<String>,
+    out_proxy: Box<dyn OutputProxy + Send>,
+    aead_type: AeadType,
+}
+
+impl SsInputProxy {
+    pub async fn new(
+        aead_type: AeadType,
+        passive: &BasePassiveConfig,
+        out_proxy: Box<dyn OutputProxy + Send>,
+    ) -> io::Result<Self> {
+        let addr_str = format!("{}:{}", &passive.local_host, passive.local_port);
+        let addr = SocketAddr::from_str(addr_str.as_str()).or(
+            Err(Error::new(ErrorKind::InvalidInput, "Error address"))
+        );
+        let tcp_listener = TcpListener::bind(addr?).await?;
+        info!("Shadowsocks ({:?}) bind in {}", aead_type, addr_str);
+        Ok(Self {
+            tcp_listerner: tcp_listener,
+            password: passive.password.clone(),
+            out_proxy,
+            aead_type,
+        })
+    }
+}
+
+#[async_trait]
+impl InputProxy for SsInputProxy {
+    async fn start(&mut self) -> io::Result<()> {
+        info!("Shadowsocks start listen");
+        loop {
+            let out_proxy = &mut self.out_proxy;
+            let mut tcpstream: TcpStream = self.tcp_listerner.incoming().next().await.ok_or(
+                io::Error::new(ErrorKind::InvalidInput, "")
+            )??;
+            let mut connector = Socks5Connector::new(&mut tcpstream);
+            let info = match connector.check().await {
+                Ok(info) => info,
+                Err(_) => continue
+            };
+            let starter = match out_proxy.gen_starter(info) {
+                Ok(n) => n,
+                Err(_) => continue
+            };
+            async_std::task::spawn(async move {
+                if let Err(e) = new_proxy(&mut tcpstream, starter).await {
+                    error!("Shadowsocks proxy error. {}", e)
+                };
+            });
+        }
+    }
+}
+
+
 //<--<--<--<--<--<--<--<--<--<--<--<--SS_INPUT_PROXY--<--<--<--<--<--<--<--<--<--<--<--<
 
 /// Generate a Shadowsocks salt
