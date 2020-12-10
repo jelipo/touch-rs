@@ -9,11 +9,11 @@ use async_trait::async_trait;
 use log::{error, info};
 
 use crate::core::profile::BasePassiveConfig;
-use crate::net::proxy::{Closer, InputProxy, OutProxyStarter, OutputProxy, ProxyReader, ProxyWriter};
+use crate::net::proxy::{Closer, InputProxy, OutProxyStarter, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
 use crate::socks::socks5_connector::Socks5Connector;
 
 pub struct Socks5Passive {
-    tcp_listerner: TcpListener,
+    tcp_listener: TcpListener,
     password: Option<String>,
     out_proxy: Box<dyn OutputProxy + Send>,
 }
@@ -28,7 +28,7 @@ impl Socks5Passive {
         let tcp_listener = TcpListener::bind(addr?).await?;
         info!("Socks5 bind in {}", addr_str);
         Ok(Self {
-            tcp_listerner: tcp_listener,
+            tcp_listener,
             password: passive.password.clone(),
             out_proxy,
         })
@@ -42,15 +42,10 @@ impl InputProxy for Socks5Passive {
         info!("Sock5 start listen");
         loop {
             let out_proxy = &mut self.out_proxy;
-            let mut tcpstream: TcpStream = self.tcp_listerner.incoming().next().await.ok_or(
+            let mut tcpstream: TcpStream = self.tcp_listener.incoming().next().await.ok_or(
                 io::Error::new(ErrorKind::InvalidInput, "")
             )??;
-            let mut connector = Socks5Connector::new(&mut tcpstream);
-            let info = match connector.check().await {
-                Ok(info) => info,
-                Err(_) => continue
-            };
-            let starter = match out_proxy.gen_starter(info) {
+            let starter = match out_proxy.gen_starter() {
                 Ok(n) => n,
                 Err(_) => continue
             };
@@ -64,10 +59,13 @@ impl InputProxy for Socks5Passive {
 }
 
 
-async fn new_proxy(input_stream: &mut TcpStream, mut starter: Box<dyn OutProxyStarter + Send>) -> io::Result<()> {
+async fn new_proxy(input_stream: &mut TcpStream, mut starter: Box<dyn OutProxyStarter>) -> io::Result<()> {
+    let mut connector = Socks5Connector::new(input_stream);
+    let info = connector.check().await?;
+
     let (out_reader,
         out_writer,
-        mut closer) = starter.new_connect().await?;
+        mut closer) = starter.new_connect(info).await?;
     let input_read = input_stream.clone();
     let input_write = input_stream.clone();
     let reader = async {
@@ -83,7 +81,7 @@ async fn new_proxy(input_stream: &mut TcpStream, mut starter: Box<dyn OutProxySt
     Ok(())
 }
 
-async fn read(mut input_read: TcpStream, mut out_writer: Box<dyn ProxyWriter + Send>) -> usize {
+async fn read(mut input_read: TcpStream, mut out_writer: Box<dyn ProxyWriter>) -> usize {
     let mut buf = [0u8; 1024];
     let mut total = 0;
     while let Ok(size) = input_read.read(&mut buf).await {
@@ -94,7 +92,7 @@ async fn read(mut input_read: TcpStream, mut out_writer: Box<dyn ProxyWriter + S
     total
 }
 
-async fn write(mut input_write: TcpStream, mut out_reader: Box<dyn ProxyReader + Send>) -> usize {
+async fn write(mut input_write: TcpStream, mut out_reader: Box<dyn ProxyReader>) -> usize {
     let mut total = 0;
     while let Ok(data) = out_reader.read().await {
         if data.len() == 0 { break; }

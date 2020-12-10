@@ -47,27 +47,3 @@ async fn listen() -> io::Result<()> {
     println!("{:?}", String::from_utf8(data.to_vec()).unwrap().as_str());
     Ok(())
 }
-
-async fn start() -> io::Result<()> {
-    Ok(())
-}
-
-async fn proxy(client_stream: &mut TcpStream, remote_stream: &mut TcpStream, _id: u64) {
-    let mut client_read = client_stream.clone();
-    let mut client_write = client_stream.clone();
-    let mut remote_read = remote_stream.clone();
-    let mut remote_write = remote_stream.clone();
-
-    let handle1: JoinHandle<u64> = task::spawn(async move {
-        return io::copy(&mut client_read, &mut remote_write).await.unwrap();
-    });
-    let handle2: JoinHandle<u64> = task::spawn(async move {
-        return io::copy(&mut remote_read, &mut client_write).await.unwrap();
-    });
-
-    // TODO 阻塞等待完成
-    handle2.await;
-    client_stream.shutdown(Shutdown::Both);
-    remote_stream.shutdown(Shutdown::Both);
-    handle1.await;
-}

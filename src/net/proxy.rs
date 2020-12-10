@@ -25,38 +25,38 @@ pub trait InputProxy {
 }
 
 
-pub trait OutputProxy {
+pub trait OutputProxy: Send {
     /// Creat a new output proxy starter.
-    fn gen_starter(&mut self, proxy_info: ProxyInfo) -> io::Result<Box<dyn OutProxyStarter + Send>>;
+    fn gen_starter(&mut self) -> io::Result<Box<dyn OutProxyStarter>>;
 }
 
 #[async_trait]
-pub trait OutProxyStarter {
-    async fn new_connect(&mut self) ->
-    io::Result<(Box<dyn ProxyReader + Send>, Box<dyn ProxyWriter + Send>, Box<dyn Closer + Send>)>;
+pub trait OutProxyStarter: Send {
+    async fn new_connect(&mut self, proxy_info: ProxyInfo) ->
+    io::Result<(Box<dyn ProxyReader>, Box<dyn ProxyWriter>, Box<dyn Closer>)>;
 }
 
 #[async_trait]
-pub trait Closer {
+pub trait Closer: Send {
     fn shutdown(&mut self) -> io::Result<()>;
 }
 
 #[async_trait]
-pub trait ProxyReader {
+pub trait ProxyReader: Send {
     async fn read(&mut self) -> io::Result<Vec<u8>>;
 
     async fn read_adderss(&mut self) -> io::Result<ProxyInfo>;
 }
 
 #[async_trait]
-pub trait ProxyWriter {
+pub trait ProxyWriter: Send {
     async fn write(&mut self, raw_data: &[u8]) -> io::Result<()>;
 
     async fn write_adderss(&mut self, info: &ProxyInfo) -> io::Result<()>;
 }
 
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ProxyInfo {
     pub address_type: AddressType,
     pub address: Box<Vec<u8>>,
