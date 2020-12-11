@@ -100,8 +100,8 @@ impl ProxyWriter for SsStreamWriter {
 
     async fn write_adderss(&mut self, info: &ProxyInfo) -> io::Result<()> {
         self.stream.write_all(self.ss_aead.salt.borrow()).await?;
-        let addr_arr = Socks5::socks5_addr_arr(info.address.as_ref(), info.port, &info.address_type);
-        self.write(addr_arr.borrow()).await
+        let addr_arr = Socks5::socks5_addr_arr(&info.address, info.port, &info.address_type);
+        self.write(&addr_arr).await
     }
 }
 
@@ -235,16 +235,17 @@ impl InputProxy for SsInputProxy {
     async fn start(&mut self) -> io::Result<()> {
         info!("Shadowsocks start listen");
         loop {
-            let mut tcpstream: TcpStream = self.tcp_listener.incoming().next().await.ok_or(
+            let tcpstream: TcpStream = self.tcp_listener.incoming().next().await.ok_or(
                 io::Error::new(ErrorKind::InvalidInput, "")
             )??;
-            let mut starter = match self.out_proxy.gen_starter() {
+            let starter = match self.out_proxy.gen_starter() {
                 Ok(n) => n,
                 Err(_) => continue
             };
+            let aead_type = self.aead_type.clone();
+            let password = self.password.clone();
             async_std::task::spawn(async move {
-                if let Err(e) = new_ss_proxy(
-                    &mut tcpstream, &mut starter, &self.aead_type, self.password.clone()).await {
+                if let Err(e) = new_ss_proxy(tcpstream, starter, aead_type, password).await {
                     error!("Shadowsocks input proxy error. {}", e)
                 };
             });
@@ -252,11 +253,11 @@ impl InputProxy for SsInputProxy {
     }
 }
 
-async fn new_ss_proxy(input: &mut TcpStream, starter: &mut Box<dyn OutProxyStarter>,
-                      aead_type: &AeadType, password: String) -> io::Result<()> {
+async fn new_ss_proxy(input: TcpStream, mut starter: Box<dyn OutProxyStarter>,
+                      aead_type: AeadType, password: String) -> io::Result<()> {
     let mut ss_reader = SsStreamReader::new(input.clone(), password.as_str(), aead_type.clone());
-    let write_slat = gen_random_salt(aead_type);
-    let write_aead = SsAead::new(write_slat, password.as_bytes(), aead_type).or_else(
+    let write_slat = gen_random_salt(&aead_type);
+    let write_aead = SsAead::new(write_slat, password.as_bytes(), &aead_type).or_else(
         |e| { Err(change_error(e)) })?;
     let ss_writer = SsStreamWriter::new(input.clone(), write_aead);
 
@@ -269,8 +270,12 @@ async fn new_ss_proxy(input: &mut TcpStream, starter: &mut Box<dyn OutProxyStart
     let reader = async {
         ss_input_write(ss_writer, out_reader).await
     };
+
     let writer = async {
-        ss_input_read(ss_reader, out_writer).await
+        let first_write = if first_read_data.len() == read_addr_size { None } else {
+            Some(first_read_data[read_addr_size..].to_vec())
+        };
+        ss_input_read(ss_reader, out_writer, first_write).await
     };
     // Wait for two futures done.
     let _size = reader.race(writer).await;
@@ -280,13 +285,13 @@ async fn new_ss_proxy(input: &mut TcpStream, starter: &mut Box<dyn OutProxyStart
 }
 
 async fn ss_input_read(
-    mut input_read: SsStreamReader, mut out_writer: Box<dyn ProxyWriter>, first_write: Option<&[u8]>,
+    mut ss_reader: SsStreamReader, mut out_writer: Box<dyn ProxyWriter>, first_write: Option<Vec<u8>>,
 ) -> usize {
     let mut total = 0;
     if let Some(data) = first_write {
-        if out_writer.write(data).await.is_err() { return 0; } else { total = data.len() }
+        if out_writer.write(&data).await.is_err() { return 0; } else { total = data.len() }
     }
-    while let Ok(data) = input_read.read().await {
+    while let Ok(data) = ss_reader.read().await {
         let size = data.len();
         if size == 0 { break; } else { total = total + size; }
         if out_writer.write(&data).await.is_err() { break; }
@@ -310,7 +315,6 @@ async fn ss_input_write(mut input_write: SsStreamWriter, mut out_reader: Box<dyn
 fn gen_random_salt(aead_type: &AeadType) -> Box<[u8]> {
     match aead_type {
         AeadType::AES128GCM => rand::random::<[u8; 16]>().into(),
-        AeadType::AES256GCM => rand::random::<[u8; 32]>().into(),
-        AeadType::Chacha20Poly1305 => rand::random::<[u8; 32]>().into()
+        AeadType::AES256GCM | AeadType::Chacha20Poly1305 => rand::random::<[u8; 32]>().into()
     }
 }
