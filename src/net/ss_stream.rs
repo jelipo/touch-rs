@@ -1,4 +1,5 @@
 use std::borrow::Borrow;
+use std::convert::TryFrom;
 use std::io;
 use std::io::Error;
 use std::str::FromStr;
@@ -23,6 +24,7 @@ pub struct SsStreamReader {
     aead_type: AeadType,
     ss_aead: Option<SsAead>,
     ss_len_buf: [u8; 18],
+    ss_data_buf: Box<[u8]>,
 }
 
 impl SsStreamReader {
@@ -33,6 +35,7 @@ impl SsStreamReader {
             aead_type,
             ss_aead: None,
             ss_len_buf: [0u8; 18],
+            ss_data_buf: vec![0u8; 4096].into_boxed_slice(),
         }
     }
 }
@@ -51,10 +54,10 @@ impl ProxyReader for SsStreamReader {
         //Read bytes and decrypt byte
         self.stream.read_exact(&mut self.ss_len_buf).await?;
         let len_vec = decrypt(&self.ss_len_buf, aead)?;
-        let len = u16::from_be_bytes([len_vec[0], len_vec[1]]);
-        let mut en_data = vec![0u8; (len + 16) as usize];
-        self.stream.read_exact(&mut en_data).await?;
-        decrypt(en_data.as_ref(), aead)
+        let len: usize = (((0x0000 | len_vec[0]) << 8) | len_vec[1]) as usize;
+        let buf = self.ss_data_buf[..(len + 16) as usize].as_mut();
+        self.stream.read_exact(buf).await?;
+        decrypt(buf, aead)
     }
 
     async fn read_adderss(&mut self) -> io::Result<ProxyInfo> {
