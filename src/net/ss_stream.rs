@@ -59,10 +59,6 @@ impl ProxyReader for SsStreamReader {
         self.stream.read_exact(buf).await?;
         decrypt(buf, aead)
     }
-
-    async fn read_adderss(&mut self) -> io::Result<ProxyInfo> {
-        unimplemented!()
-    }
 }
 
 async fn read_slat_to_aead(aead_type: &AeadType, tcpstream: &mut TcpStream, password: &[u8]) -> io::Result<SsAead> {

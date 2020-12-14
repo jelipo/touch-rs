@@ -46,34 +46,43 @@ impl SsAead {
 
     pub fn ss_encrypt(&mut self, data: &[u8]) -> Result<Vec<u8>> {
         let nonce_arr = self.en_nonce.get_and_increment();
-        self.encryption.encrypt(nonce_arr.borrow(), data)
+        self.encryption.encrypt(nonce_arr, data)
     }
 
     pub fn ss_decrypt(&mut self, data: &[u8]) -> Result<Vec<u8>> {
         let nonce_arr = self.de_nonce.get_and_increment();
-        self.encryption.decrypt(nonce_arr.borrow(), data)
+        self.encryption.decrypt(nonce_arr, data)
     }
 }
 
-#[derive(Clone)]
+
 pub struct Nonce {
-    base: u128
+    base: u128,
+    base_arr: [u8; 12],
 }
 
 impl Nonce {
     /// Get the nonce byte and increment
-    pub fn get_and_increment(&mut self) -> Box<[u8]> {
-        let byt: [u8; 16] = self.base.to_le_bytes();
-        self.base = self.base + 1;
-        byt[0..12].into()
+    pub fn get_and_increment(&mut self) -> &[u8] {
+        self.increment(0);
+        &self.base_arr
     }
 
-    pub fn new() -> Self { Nonce { base: 0 } }
+    fn increment(&mut self, index: usize) {
+        let x = self.base_arr[index];
+        if x == 255u8 {
+            self.increment(index + 1);
+            self.base_arr[index] = 0;
+        } else {
+            self.base_arr[index] = x + 1;
+        }
+    }
+
+    pub fn new() -> Self { Nonce { base: 0, base_arr: [0u8; 12] } }
 }
 
 #[cfg(test)]
 mod tests {
-    
     use crate::encrypt::aead::AeadType;
     use crate::encrypt::ss::ss_aead::SsAead;
 

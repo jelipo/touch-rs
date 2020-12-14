@@ -97,7 +97,7 @@ fn aead_encrypt<T: Aead>(cipher: &T, nonce: &[u8], data: &[u8]) -> Result<Vec<u8
 
 /// Aead Decrypt
 fn aead_decrypt<T: Aead>(cipher: &T, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>> {
-    let nonce = GenericArray::from_slice(nonce);
+    let nonce = GenericArray::from_slice(nonce);    
     cipher.decrypt(nonce, data).or(Err(EncryptError::DecryptErr))
 }
 

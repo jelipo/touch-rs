@@ -44,8 +44,6 @@ pub trait Closer: Send {
 #[async_trait]
 pub trait ProxyReader: Send {
     async fn read(&mut self) -> io::Result<Vec<u8>>;
-
-    async fn read_adderss(&mut self) -> io::Result<ProxyInfo>;
 }
 
 #[async_trait]
