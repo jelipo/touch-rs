@@ -8,13 +8,16 @@ fn new_aes() {
 
     let nonce = GenericArray::from_slice(b"unique nonce"); // 96-bits; unique per message
 
-    let mut buffer = Vec::new();
-    buffer.extend_from_slice(b"plaintext message");
+    let mut buffer = vec![0u8; 128];
+    let x = b"plaintext message";
+    buffer[..17].copy_from_slice(x);
     println!("{:?}", buffer);
 
 
     // Encrypt `buffer` in-place, replacing the plaintext contents with ciphertext
     cipher.encrypt_in_place(nonce, b"", &mut buffer).expect("encryption failure!");
+
+    println!("{:?}", buffer);
 
     // `buffer` now contains the message ciphertext
     assert_ne!(&buffer, b"plaintext message");
