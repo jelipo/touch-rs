@@ -1,31 +1,51 @@
 // Or `Aes128Gcm`
-use aes_gcm::aead::{AeadInPlace, generic_array::GenericArray, NewAead};
-use aes_gcm::Aes256Gcm;
-
-fn new_aes() {
-    let key = GenericArray::from_slice(b"an example very very secret key.");
-    let cipher = Aes256Gcm::new(key);
-
-    let nonce = GenericArray::from_slice(b"unique nonce"); // 96-bits; unique per message
-
-    let mut buffer = vec![0u8; 128];
-    let x = b"plaintext message";
-    buffer[..17].copy_from_slice(x);
-    println!("{:?}", buffer);
 
 
-    // Encrypt `buffer` in-place, replacing the plaintext contents with ciphertext
-    cipher.encrypt_in_place(nonce, b"", &mut buffer).expect("encryption failure!");
+use ring::aead;
+use ring::aead::{Aad, BoundKey, Nonce};
+use ring::error::Unspecified;
 
-    println!("{:?}", buffer);
-
-    // `buffer` now contains the message ciphertext
-    assert_ne!(&buffer, b"plaintext message");
-
-    // Decrypt `buffer` in-place, replacing its ciphertext context with the original plaintext
-    cipher.decrypt_in_place(nonce, b"", &mut buffer).expect("decryption failure!");
-    assert_eq!(&buffer, b"plaintext message");
+fn new_aes() -> std::io::Result<Vec<u8>> {
+    let key = [0u8; 32];
+    let unbound_key = aead::UnboundKey::new(&aead::AES_256_GCM, &key).unwrap();
+    let nonce = AeadNonce::new();
+    let mut sealing_key = aead::SealingKey::new(unbound_key, nonce);
+    let mut vec = vec![0u8; 16];
+    sealing_key.seal_in_place_append_tag(Aad::empty(), &mut vec);
+    Ok(vec)
 }
+
+
+pub struct AeadNonce {
+    base_arr: [u8; 12],
+}
+
+impl aead::NonceSequence for AeadNonce {
+    fn advance(&mut self) -> Result<Nonce, Unspecified> {
+        aead::Nonce::try_assume_unique_for_key(self.get_and_increment())
+    }
+}
+
+impl AeadNonce {
+    /// Get the nonce byte and increment
+    pub fn get_and_increment(&mut self) -> &[u8] {
+        self.increment(0);
+        &self.base_arr
+    }
+
+    fn increment(&mut self, index: usize) {
+        let x = self.base_arr[index];
+        if x == 255u8 {
+            self.increment(index + 1);
+            self.base_arr[index] = 0;
+        } else {
+            self.base_arr[index] = x + 1;
+        }
+    }
+
+    pub fn new() -> Self { Self { base_arr: [0u8; 12] } }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -35,6 +55,7 @@ mod tests {
 
     #[test]
     fn new_aes_test() {
-        new_aes();
+        let vec = new_aes().unwrap();
+        println!("{:?}", vec);
     }
 }
