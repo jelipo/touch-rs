@@ -34,12 +34,11 @@ impl AeadNonce {
     }
 
     fn increment(&mut self, index: usize) {
-        let x = self.base_arr[index];
-        if x == 255u8 {
+        if self.base_arr[index] == 255u8 {
             self.increment(index + 1);
             self.base_arr[index] = 0;
         } else {
-            self.base_arr[index] = x + 1;
+            self.base_arr[index] = x + 1
         }
     }
 
