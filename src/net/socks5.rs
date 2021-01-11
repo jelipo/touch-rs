@@ -87,7 +87,7 @@ async fn read(mut input_read: TcpStream, mut out_writer: Box<dyn ProxyWriter>) -
     while let Ok(size) = input_read.read(&mut buf).await {
         if size == 0 { break; }
         total = total + size;
-        if out_writer.write(&buf[0..size]).await.is_err() { break; }
+        if out_writer.write(&mut buf[..size]).await.is_err() { break; }
     }
     total
 }

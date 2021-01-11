@@ -57,15 +57,20 @@ impl SsAead {
 
 
 pub struct Nonce {
-    base: u128,
     base_arr: [u8; 12],
+    first: bool,
 }
 
 impl Nonce {
     /// Get the nonce byte and increment
     pub fn get_and_increment(&mut self) -> &[u8] {
-        self.increment(0);
-        &self.base_arr
+        if self.first {
+            self.first = false;
+            &self.base_arr
+        } else {
+            self.increment(0);
+            &self.base_arr
+        }
     }
 
     fn increment(&mut self, index: usize) {
@@ -78,7 +83,7 @@ impl Nonce {
         }
     }
 
-    pub fn new() -> Self { Nonce { base: 0, base_arr: [0u8; 12] } }
+    pub fn new() -> Self { Nonce { base_arr: [0u8; 12], first: true } }
 }
 
 #[cfg(test)]

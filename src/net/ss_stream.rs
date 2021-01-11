@@ -35,9 +35,30 @@ impl SsStreamReader {
             aead_type,
             ss_aead: None,
             ss_len_buf: [0u8; 18],
-            ss_data_buf: vec![0u8; 4096].into_boxed_slice(),
+            ss_data_buf: vec![0u8; 1024 * 32].into_boxed_slice(),
         }
     }
+
+    // pub fn read_test(&mut self) -> Box<&[u8]> {
+    //     // Check if this is the first read. If first read,creat the SsAead.
+    //     if self.ss_aead.is_none() {
+    //         let aead = read_slat_to_aead(&self.aead_type, &mut self.stream, self.password.as_ref()).await?;
+    //         self.ss_aead = Some(aead)
+    //     }
+    //     let aead = self.ss_aead.as_mut().unwrap();
+    //     //Read bytes and decrypt byte
+    //     self.stream.read_exact(&mut self.ss_len_buf).await?;
+    //     let len_vec = decrypt(&self.ss_len_buf, aead)?;
+    //     let en_data_len = u16::from_be_bytes([len_vec[0], len_vec[1]]) as usize;
+    //     // Auto
+    //     if en_data_len > self.ss_data_buf.len() {
+    //         println!("len {}", en_data_len);
+    //         self.ss_data_buf = vec![0u8; en_data_len].into_boxed_slice()
+    //     }
+    //     let buf = self.ss_data_buf[..(en_data_len + 16) as usize].as_mut();
+    //     self.stream.read_exact(buf).await?;
+    //     decrypt(buf, aead)
+    // }
 }
 
 /// Shadowsocks TCP Reader.
@@ -53,9 +74,14 @@ impl ProxyReader for SsStreamReader {
         let aead = self.ss_aead.as_mut().unwrap();
         //Read bytes and decrypt byte
         self.stream.read_exact(&mut self.ss_len_buf).await?;
-        let len_vec = decrypt(&self.ss_len_buf, aead)?;
-        let len: usize = (((0x0000 | len_vec[0]) << 8) | len_vec[1]) as usize;
-        let buf = self.ss_data_buf[..(len + 16) as usize].as_mut();
+        let len_vec = decrypt(&mut self.ss_len_buf, aead)?;
+        let en_data_len = u16::from_be_bytes([len_vec[0], len_vec[1]]) as usize;
+        // Auto
+        if en_data_len > self.ss_data_buf.len() {
+            println!("len {}", en_data_len);
+            self.ss_data_buf = vec![0u8; en_data_len].into_boxed_slice()
+        }
+        let buf = self.ss_data_buf[..(en_data_len + 16) as usize].as_mut();
         self.stream.read_exact(buf).await?;
         decrypt(buf, aead)
     }
@@ -88,10 +114,10 @@ impl SsStreamWriter {
 
 #[async_trait]
 impl ProxyWriter for SsStreamWriter {
-    async fn write(&mut self, raw_data: &[u8]) -> io::Result<()> {
+    async fn write(&mut self, raw_data: &mut [u8]) -> io::Result<()> {
         let aead = &mut self.ss_aead;
         let len = raw_data.len() as u16;
-        let len_en = encrypt(&len.to_be_bytes(), aead)?;
+        let len_en = encrypt(&mut len.to_be_bytes(), aead)?;
         self.stream.write_all(len_en.as_ref()).await?;
         let en_data = encrypt(raw_data, aead)?;
         self.stream.write_all(en_data.as_ref()).await
@@ -99,8 +125,8 @@ impl ProxyWriter for SsStreamWriter {
 
     async fn write_adderss(&mut self, info: &ProxyInfo) -> io::Result<()> {
         self.stream.write_all(self.ss_aead.salt.borrow()).await?;
-        let addr_arr = Socks5::socks5_addr_arr(&info.address, info.port, &info.address_type);
-        self.write(&addr_arr).await
+        let mut addr_arr = Socks5::socks5_addr_arr(&info.address, info.port, &info.address_type);
+        self.write(&mut addr_arr).await
     }
 }
 
@@ -109,14 +135,14 @@ fn change_error(error: EncryptError) -> io::Error {
     io::Error::from(ErrorKind::InvalidInput)
 }
 
-fn decrypt(de_data: &[u8], ss_aead: &mut SsAead) -> io::Result<Vec<u8>> {
+fn decrypt(de_data: &mut [u8], ss_aead: &mut SsAead) -> io::Result<Vec<u8>> {
     match ss_aead.ss_decrypt(de_data) {
         Ok(de_data) => Ok(de_data),
         Err(e) => Err(change_error(e)),
     }
 }
 
-fn encrypt(raw_data: &[u8], ss_aead: &mut SsAead) -> io::Result<Vec<u8>> {
+fn encrypt(raw_data: &mut [u8], ss_aead: &mut SsAead) -> io::Result<Vec<u8>> {
     match ss_aead.ss_encrypt(raw_data) {
         Ok(en_data) => Ok(en_data),
         Err(e) => Err(change_error(e)),
@@ -287,23 +313,23 @@ async fn ss_input_read(
     mut ss_reader: SsStreamReader, mut out_writer: Box<dyn ProxyWriter>, first_write: Option<Vec<u8>>,
 ) -> usize {
     let mut total = 0;
-    if let Some(data) = first_write {
-        if out_writer.write(&data).await.is_err() { return 0; } else { total = data.len() }
+    if let Some(mut data) = first_write {
+        if out_writer.write(data.as_mut()).await.is_err() { return 0; } else { total = data.len() }
     }
-    while let Ok(data) = ss_reader.read().await {
+    while let Ok(mut data) = ss_reader.read().await {
         let size = data.len();
         if size == 0 { break; } else { total = total + size; }
-        if out_writer.write(&data).await.is_err() { break; }
+        if out_writer.write(data.as_mut()).await.is_err() { break; }
     }
     total
 }
 
 async fn ss_input_write(mut input_write: SsStreamWriter, mut out_reader: Box<dyn ProxyReader>) -> usize {
     let mut total = 0;
-    while let Ok(data) = out_reader.read().await {
+    while let Ok(mut data) = out_reader.read().await {
         let size = data.len();
         if size == 0 { break; } else { total = total + size; }
-        if input_write.write(&data).await.is_err() { break; };
+        if input_write.write(data.as_mut()).await.is_err() { break; };
     }
     total
 }

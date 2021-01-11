@@ -48,7 +48,7 @@ pub trait ProxyReader: Send {
 
 #[async_trait]
 pub trait ProxyWriter: Send {
-    async fn write(&mut self, raw_data: &[u8]) -> io::Result<()>;
+    async fn write(&mut self, raw_data: &mut [u8]) -> io::Result<()>;
 
     async fn write_adderss(&mut self, info: &ProxyInfo) -> io::Result<()>;
 }

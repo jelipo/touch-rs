@@ -12,6 +12,10 @@ fn new_aes() -> std::io::Result<Vec<u8>> {
     let mut sealing_key = aead::SealingKey::new(unbound_key, nonce);
     let mut vec = vec![0u8; 16];
     sealing_key.seal_in_place_append_tag(Aad::empty(), &mut vec);
+
+    let x = sealing_key.seal_in_place_separate_tag(Aad::empty(), vec.as_mut())
+        .map(|tag| vec.extend(tag.as_ref()));
+
     Ok(vec)
 }
 
@@ -34,11 +38,12 @@ impl AeadNonce {
     }
 
     fn increment(&mut self, index: usize) {
-        if self.base_arr[index] == 255u8 {
-            self.increment(index + 1);
-            self.base_arr[index] = 0;
-        } else {
-            self.base_arr[index] = x + 1
+        match self.base_arr[index] {
+            255u8 => {
+                self.increment(index + 1);
+                self.base_arr[index] = 0;
+            }
+            n => self.base_arr[index] = n + 1,
         }
     }
 
