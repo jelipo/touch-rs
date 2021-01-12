@@ -65,7 +65,7 @@ impl SsStreamReader {
 /// First, it will read a 16/32 bytes of salt.
 #[async_trait]
 impl ProxyReader for SsStreamReader {
-    async fn read(&mut self) -> io::Result<Vec<u8>> {
+    async fn read(&mut self) -> io::Result<&mut [u8]> {
         // Check if this is the first read. If first read,creat the SsAead.
         if self.ss_aead.is_none() {
             let aead = read_slat_to_aead(&self.aead_type, &mut self.stream, self.password.as_ref()).await?;
@@ -135,14 +135,14 @@ fn change_error(error: EncryptError) -> io::Error {
     io::Error::from(ErrorKind::InvalidInput)
 }
 
-fn decrypt(de_data: &mut [u8], ss_aead: &mut SsAead) -> io::Result<Vec<u8>> {
+fn decrypt<'a>(de_data: &'a mut [u8], ss_aead: &'a mut SsAead) -> io::Result<&'a mut [u8]> {
     match ss_aead.ss_decrypt(de_data) {
         Ok(de_data) => Ok(de_data),
         Err(e) => Err(change_error(e)),
     }
 }
 
-fn encrypt(raw_data: &mut [u8], ss_aead: &mut SsAead) -> io::Result<Vec<u8>> {
+fn encrypt<'a>(raw_data: &mut [u8], ss_aead: &'a mut SsAead) -> io::Result<&'a mut [u8]> {
     match ss_aead.ss_encrypt(raw_data) {
         Ok(en_data) => Ok(en_data),
         Err(e) => Err(change_error(e)),
@@ -287,7 +287,7 @@ async fn new_ss_proxy(input: TcpStream, mut starter: Box<dyn OutProxyStarter>,
     let ss_writer = SsStreamWriter::new(input.clone(), write_aead);
 
     let first_read_data = ss_reader.read().await?;
-    let (info, read_addr_size) = Socks5::read_to_socket_addrs(&first_read_data);
+    let (info, read_addr_size) = Socks5::read_to_socket_addrs(first_read_data);
     let (out_reader,
         out_writer,
         mut closer) = starter.new_connect(info).await?;
@@ -295,11 +295,11 @@ async fn new_ss_proxy(input: TcpStream, mut starter: Box<dyn OutProxyStarter>,
     let reader = async {
         ss_input_write(ss_writer, out_reader).await
     };
-
+    let size = first_read_data.len();
+    let mut first_write: Option<Box<[u8]>> = if size == read_addr_size { None } else {
+        Some(first_read_data[read_addr_size..].into())
+    };
     let writer = async {
-        let first_write = if first_read_data.len() == read_addr_size { None } else {
-            Some(first_read_data[read_addr_size..].to_vec())
-        };
         ss_input_read(ss_reader, out_writer, first_write).await
     };
     // Wait for two futures done.
@@ -310,7 +310,7 @@ async fn new_ss_proxy(input: TcpStream, mut starter: Box<dyn OutProxyStarter>,
 }
 
 async fn ss_input_read(
-    mut ss_reader: SsStreamReader, mut out_writer: Box<dyn ProxyWriter>, first_write: Option<Vec<u8>>,
+    mut ss_reader: SsStreamReader, mut out_writer: Box<dyn ProxyWriter>, first_write: Option<Box<[u8]>>,
 ) -> usize {
     let mut total = 0;
     if let Some(mut data) = first_write {
