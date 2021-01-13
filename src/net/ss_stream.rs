@@ -1,5 +1,5 @@
 use std::borrow::Borrow;
-use std::convert::TryFrom;
+
 use std::io;
 use std::io::Error;
 use std::str::FromStr;
@@ -296,7 +296,7 @@ async fn new_ss_proxy(input: TcpStream, mut starter: Box<dyn OutProxyStarter>,
         ss_input_write(ss_writer, out_reader).await
     };
     let size = first_read_data.len();
-    let mut first_write: Option<Box<[u8]>> = if size == read_addr_size { None } else {
+    let first_write: Option<Box<[u8]>> = if size == read_addr_size { None } else {
         Some(first_read_data[read_addr_size..].into())
     };
     let writer = async {
@@ -316,7 +316,7 @@ async fn ss_input_read(
     if let Some(mut data) = first_write {
         if out_writer.write(data.as_mut()).await.is_err() { return 0; } else { total = data.len() }
     }
-    while let Ok(mut data) = ss_reader.read().await {
+    while let Ok(data) = ss_reader.read().await {
         let size = data.len();
         if size == 0 { break; } else { total = total + size; }
         if out_writer.write(data.as_mut()).await.is_err() { break; }
@@ -326,7 +326,7 @@ async fn ss_input_read(
 
 async fn ss_input_write(mut input_write: SsStreamWriter, mut out_reader: Box<dyn ProxyReader>) -> usize {
     let mut total = 0;
-    while let Ok(mut data) = out_reader.read().await {
+    while let Ok(data) = out_reader.read().await {
         let size = data.len();
         if size == 0 { break; } else { total = total + size; }
         if input_write.write(data.as_mut()).await.is_err() { break; };

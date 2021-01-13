@@ -1,14 +1,13 @@
 use std::io;
 
-use async_std::io::ErrorKind;
-use async_std::io::ReadExt;
-use async_std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
-use async_std::prelude::*;
-use async_trait::async_trait;
 
-use crate::net::AddressType;
+use async_std::io::ReadExt;
+use async_std::net::{TcpStream};
+use async_std::prelude::*;
+
+
 use crate::net::proxy::{Closer, OutProxyStarter, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
-use crate::util::address::Address;
+
 
 #[derive(Clone)]
 pub struct PlainOutProxy {}

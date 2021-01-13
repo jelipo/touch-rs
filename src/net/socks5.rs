@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use log::{error, info};
 
 use crate::core::profile::BasePassiveConfig;
-use crate::net::proxy::{Closer, InputProxy, OutProxyStarter, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
+use crate::net::proxy::{Closer, InputProxy, OutProxyStarter, OutputProxy, ProxyReader, ProxyWriter};
 use crate::socks::socks5_connector::Socks5Connector;
 
 pub struct Socks5Passive {

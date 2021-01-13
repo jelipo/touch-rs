@@ -1,17 +1,9 @@
 use std::path::Path;
 
 use async_std::io;
-use async_std::net::{Shutdown, TcpListener, TcpStream};
-use async_std::prelude::*;
-use async_std::task;
-use async_std::task::JoinHandle;
-
 use crate::core::config::ConfigReader;
 use crate::core::selector::ProtocalSelector;
-use crate::encrypt::aead::AeadType;
-use crate::net::proxy::ProxyReader;
-use crate::net::ss_stream::SsStreamReader;
-use crate::socks::socks5::Socks5;
+
 
 mod socks;
 mod ss;

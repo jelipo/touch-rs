@@ -13,7 +13,7 @@ fn new_aes() -> std::io::Result<Vec<u8>> {
     let mut vec = vec![0u8; 16];
     sealing_key.seal_in_place_append_tag(Aad::empty(), &mut vec);
 
-    let x = sealing_key.seal_in_place_separate_tag(Aad::empty(), vec.as_mut())
+    let _x = sealing_key.seal_in_place_separate_tag(Aad::empty(), vec.as_mut())
         .map(|tag| vec.extend(tag.as_ref()));
 
     Ok(vec)

@@ -1,5 +1,5 @@
 use std::borrow::Borrow;
-use std::net::{Ipv6Addr, SocketAddrV6};
+
 
 use crate::net::AddressType;
 use crate::net::proxy::ProxyInfo;
@@ -71,7 +71,7 @@ mod tests {
     fn test() {
         let mut bytes = [0u8; 128];
         bytes[0] = 1;
-        let (info, size) = Socks5::read_to_socket_addrs(&bytes);
+        let (info, _size) = Socks5::read_to_socket_addrs(&bytes);
         println!("{:?}", info);
     }
 }
