@@ -38,27 +38,6 @@ impl SsStreamReader {
             ss_data_buf: vec![0u8; 1024 * 32].into_boxed_slice(),
         }
     }
-
-    // pub fn read_test(&mut self) -> Box<&[u8]> {
-    //     // Check if this is the first read. If first read,creat the SsAead.
-    //     if self.ss_aead.is_none() {
-    //         let aead = read_slat_to_aead(&self.aead_type, &mut self.stream, self.password.as_ref()).await?;
-    //         self.ss_aead = Some(aead)
-    //     }
-    //     let aead = self.ss_aead.as_mut().unwrap();
-    //     //Read bytes and decrypt byte
-    //     self.stream.read_exact(&mut self.ss_len_buf).await?;
-    //     let len_vec = decrypt(&self.ss_len_buf, aead)?;
-    //     let en_data_len = u16::from_be_bytes([len_vec[0], len_vec[1]]) as usize;
-    //     // Auto
-    //     if en_data_len > self.ss_data_buf.len() {
-    //         println!("len {}", en_data_len);
-    //         self.ss_data_buf = vec![0u8; en_data_len].into_boxed_slice()
-    //     }
-    //     let buf = self.ss_data_buf[..(en_data_len + 16) as usize].as_mut();
-    //     self.stream.read_exact(buf).await?;
-    //     decrypt(buf, aead)
-    // }
 }
 
 /// Shadowsocks TCP Reader.
@@ -78,7 +57,6 @@ impl ProxyReader for SsStreamReader {
         let en_data_len = u16::from_be_bytes([len_vec[0], len_vec[1]]) as usize;
         // Auto
         if en_data_len > self.ss_data_buf.len() {
-            println!("len {}", en_data_len);
             self.ss_data_buf = vec![0u8; en_data_len].into_boxed_slice()
         }
         let buf = self.ss_data_buf[..(en_data_len + 16) as usize].as_mut();
@@ -120,7 +98,8 @@ impl ProxyWriter for SsStreamWriter {
         let len_en = encrypt(&mut len.to_be_bytes(), aead)?;
         self.stream.write_all(len_en.as_ref()).await?;
         let en_data = encrypt(raw_data, aead)?;
-        self.stream.write_all(en_data.as_ref()).await
+        let result = self.stream.write_all(en_data.as_ref()).await;
+        result
     }
 
     async fn write_adderss(&mut self, info: &ProxyInfo) -> io::Result<()> {
