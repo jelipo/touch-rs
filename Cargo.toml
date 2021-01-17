@@ -24,7 +24,7 @@ env_logger = "0.8"
 
 ring = "0.16.19"
 
-async-std = { version = "1.8.0", features = ["unstable", "attributes"] }
+async-std = { version = "1.9.0", features = ["unstable", "attributes"] }
 fantasy-util = "0.1"
 
 hkdf = "0.10"
