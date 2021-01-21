@@ -37,7 +37,7 @@ fn read_file(path: &Path) -> io::Result<Profile> {
     let file = File::open(path)?;
     let metadata = file.metadata()?;
     if metadata.len() > file_max_size {
-        let err = format!("The file is too large,MAX_FILE_SZIE:{}KB", file_max_size / 1024);
+        let err = format!("The file is too large , MAX_FILE_SZIE: {}KB", file_max_size / 1024);
         return Err(Error::new(ErrorKind::InvalidInput, err));
     }
     let result: serde_json::Result<Profile> = serde_json::from_reader(file);

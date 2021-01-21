@@ -98,8 +98,7 @@ impl ProxyWriter for SsStreamWriter {
         let len_en = encrypt(&mut len.to_be_bytes(), aead)?;
         self.stream.write_all(len_en.as_ref()).await?;
         let en_data = encrypt(raw_data, aead)?;
-        let result = self.stream.write_all(en_data.as_ref()).await;
-        result
+        self.stream.write_all(en_data.as_ref()).await
     }
 
     async fn write_adderss(&mut self, info: &ProxyInfo) -> io::Result<()> {

@@ -2,20 +2,13 @@ use crate::encrypt::error::EncryptError;
 use crate::encrypt::error::Result;
 use ring::aead::{BoundKey, SealingKey, Aad, OpeningKey, UnboundKey};
 use crate::encrypt::Nonce;
+use bytes::{BytesMut, BufMut};
 
 #[derive(Copy, Clone, Debug)]
 pub enum AeadType {
     AES128GCM,
     AES256GCM,
     Chacha20Poly1305,
-}
-
-pub trait AeadEncrypt {
-    /// Aead Encrypt
-    fn encrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>>;
-
-    /// Aead Decrypt
-    fn decrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>>;
 }
 
 pub const AEAD_TAG_SIZE: usize = 16;
@@ -48,7 +41,19 @@ impl AeadEncryptRing {
         }).or(Err(EncryptError::EncryptErr))
     }
 
+    pub fn encrypt_replace(&mut self, data: &mut [u8]) -> Result<Box<[u8]>> {
+        self.sealing_key.seal_in_place_separate_tag(Aad::empty(), data).map(|tag| {
+            tag.as_ref().into()
+        }).or(Err(EncryptError::EncryptErr))
+    }
+
     pub fn decrypt<'a>(&mut self, en_data: &'a mut [u8]) -> Result<&'a mut [u8]> {
         self.opening_key.open_in_place(Aad::empty(), en_data).or(Err(EncryptError::DecryptErr))
+    }
+
+    pub fn decrypt_replace(&mut self, en_data: &mut [u8]) -> Result<usize> {
+        self.opening_key.open_in_place(Aad::empty(), en_data)
+            .map(|arr| { arr.len() })
+            .or(Err(EncryptError::DecryptErr))
     }
 }
