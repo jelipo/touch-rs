@@ -1,13 +1,10 @@
 use std::borrow::Borrow;
 
 use std::io;
-use std::io::Error;
+use std::io::{Error, ErrorKind};
 use std::str::FromStr;
 
-use async_std::io::ErrorKind;
-use async_std::io::ReadExt;
-use async_std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
-use async_std::prelude::*;
+
 use async_trait::async_trait;
 use log::{debug, error, info};
 
@@ -17,6 +14,9 @@ use crate::encrypt::error::EncryptError;
 use crate::encrypt::ss::ss_aead::SsAead;
 use crate::net::proxy::{Closer, InputProxy, OutProxyStarter, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
 use crate::socks::socks5::Socks5;
+use tokio::net::{TcpStream, TcpListener};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use std::net::SocketAddr;
 
 pub struct SsStreamReader {
     stream: TcpStream,
@@ -193,9 +193,10 @@ pub struct SsCloser {
     tcp_stream: TcpStream
 }
 
+#[async_trait]
 impl Closer for SsCloser {
-    fn shutdown(&mut self) -> io::Result<()> {
-        self.tcp_stream.shutdown(Shutdown::Both)
+    async fn shutdown(&mut self) -> io::Result<()> {
+        self.tcp_stream.shutdown().await
     }
 }
 //<--<--<--<--<--<--<--<--<--<--<--<--SS_CLOSER--<--<--<--<--<--<--<--<--<--<--<--<
@@ -238,16 +239,14 @@ impl InputProxy for SsInputProxy {
     async fn start(&mut self) -> io::Result<()> {
         info!("Shadowsocks start listen");
         loop {
-            let tcpstream: TcpStream = self.tcp_listener.incoming().next().await.ok_or(
-                io::Error::new(ErrorKind::InvalidInput, "")
-            )??;
+            let (tcpstream, addr) = self.tcp_listener.accept().await?;
             let starter = match self.out_proxy.gen_starter() {
                 Ok(n) => n,
                 Err(_) => continue
             };
             let aead_type = self.aead_type.clone();
             let password = self.password.clone();
-            async_std::task::spawn(async move {
+            tokio::task::spawn(async move {
                 if let Err(e) = new_ss_proxy(tcpstream, starter, aead_type, password).await {
                     error!("Shadowsocks input proxy error. {}", e)
                 };
@@ -256,7 +255,7 @@ impl InputProxy for SsInputProxy {
     }
 }
 
-async fn new_ss_proxy(input: TcpStream, mut starter: Box<dyn OutProxyStarter>,
+async fn new_ss_proxy(mut input: TcpStream, mut starter: Box<dyn OutProxyStarter>,
                       aead_type: AeadType, password: String) -> io::Result<()> {
     let mut ss_reader = SsStreamReader::new(input.clone(), password.as_str(), aead_type.clone());
     let write_slat = gen_random_salt(&aead_type);
@@ -266,29 +265,32 @@ async fn new_ss_proxy(input: TcpStream, mut starter: Box<dyn OutProxyStarter>,
 
     let first_read_data = ss_reader.read().await?;
     let (info, read_addr_size) = Socks5::read_to_socket_addrs(first_read_data);
-    let (out_reader,
-        out_writer,
+    let (mut out_reader,
+        mut out_writer,
         mut closer) = starter.new_connect(info).await?;
 
     let reader = async {
-        ss_input_write(ss_writer, out_reader).await
+        ss_input_write(ss_writer, &mut out_reader).await
     };
     let size = first_read_data.len();
     let first_write: Option<Box<[u8]>> = if size == read_addr_size { None } else {
         Some(first_read_data[read_addr_size..].into())
     };
     let writer = async {
-        ss_input_read(ss_reader, out_writer, first_write).await
+        ss_input_read(ss_reader, &mut out_writer, first_write).await
     };
     // Wait for two futures done.
-    let _size = reader.race(writer).await;
-    let _sd_rs = input.shutdown(Shutdown::Both);
+    tokio::select! {
+        _ = reader => {}
+        _ = writer => {}
+    }
+    let _sd_rs = input.shutdown().await;
     let _closer_rs = closer.shutdown();
     Ok(())
 }
 
 async fn ss_input_read(
-    mut ss_reader: SsStreamReader, mut out_writer: Box<dyn ProxyWriter>, first_write: Option<Box<[u8]>>,
+    mut ss_reader: SsStreamReader, out_writer: &mut Box<dyn ProxyWriter>, first_write: Option<Box<[u8]>>,
 ) -> usize {
     let mut total = 0;
     if let Some(mut data) = first_write {
@@ -302,7 +304,7 @@ async fn ss_input_read(
     total
 }
 
-async fn ss_input_write(mut input_write: SsStreamWriter, mut out_reader: Box<dyn ProxyReader>) -> usize {
+async fn ss_input_write(mut input_write: SsStreamWriter, out_reader: &mut Box<dyn ProxyReader>) -> usize {
     let mut total = 0;
     while let Ok(data) = out_reader.read().await {
         let size = data.len();

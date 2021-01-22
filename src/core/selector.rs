@@ -1,6 +1,5 @@
 use std::io;
 
-use async_std::io::ErrorKind;
 
 use crate::core::config::ConfigReader;
 use crate::core::profile::{BaseActiveConfig, BasePassiveConfig, ConnectMode, ProtocalType, ProtocolConf};
@@ -8,6 +7,7 @@ use crate::encrypt::aead::AeadType;
 use crate::net::proxy::{InputProxy, OutputProxy};
 use crate::net::socks5::Socks5Passive;
 use crate::net::ss_stream::SsOutProxy;
+use std::io::ErrorKind;
 
 pub struct ProtocalSelector {}
 

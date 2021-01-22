@@ -24,7 +24,8 @@ env_logger = "0.8"
 
 ring = "0.16.19"
 
-async-std = { version = "1.9.0", features = ["unstable", "attributes"] }
+futures = "0.3"
+tokio = { version = "1", features = ["full"] }
 fantasy-util = "0.1"
 bytes = "1.0"
 

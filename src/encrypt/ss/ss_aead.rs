@@ -34,7 +34,7 @@ impl SsAead {
         if self.buffer.len() < data.len() + AEAD_TAG_SIZE {
             self.buffer = vec![0u8; data.len() + AEAD_TAG_SIZE].into_boxed_slice()
         }
-        let tag_arr = self.encryption.encrypt_replace(self.buffer.as_mut())?;
+        // let tag_arr = self.encryption.encrypt_replace(self.buffer.as_mut())?;
         let size = self.encryption.encrypt(data, self.buffer.as_mut())?;
         Ok(&mut self.buffer[..size])
     }

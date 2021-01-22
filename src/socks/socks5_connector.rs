@@ -1,11 +1,9 @@
-use std::io::{Error, Result};
-
-use async_std::io::ErrorKind;
-use async_std::net::{TcpStream};
-use async_std::prelude::*;
+use std::io::{Error, Result, ErrorKind};
 
 use crate::net::AddressType;
 use crate::net::proxy::ProxyInfo;
+use tokio::net::TcpStream;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 /// Socks5 协议
 pub struct Socks5Connector<'a> {

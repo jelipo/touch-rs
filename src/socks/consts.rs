@@ -1,7 +1,7 @@
 use std::io;
-use std::io::Error;
+use std::io::{Error, ErrorKind};
 
-use async_std::io::ErrorKind;
+
 use crate::net::AddressType;
 
 pub struct Socks5Header {

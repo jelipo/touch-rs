@@ -1,9 +1,8 @@
-use std::net::{Ipv4Addr, SocketAddrV4};
-
-use async_std::io;
-use async_std::net::{Ipv6Addr, SocketAddrV6, TcpStream};
+use std::net::{Ipv4Addr, SocketAddrV4, SocketAddrV6, Ipv6Addr};
 
 use crate::net::AddressType;
+use tokio::net::TcpStream;
+use std::io;
 
 pub struct Address {}
 
