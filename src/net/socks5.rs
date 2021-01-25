@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 
 use log::{error, info};
-
+use async_trait::async_trait;
 use crate::core::profile::BasePassiveConfig;
 use crate::net::proxy::{Closer, InputProxy, OutProxyStarter, OutputProxy, ProxyReader, ProxyWriter};
 use crate::socks::socks5_connector::Socks5Connector;
@@ -12,9 +12,11 @@ use tokio::net::{TcpListener, TcpStream};
 use std::io;
 use tokio::io::{AsyncWriteExt, AsyncReadExt};
 use std::sync::Arc;
-use std::cell::RefCell;
+use std::cell::{RefCell, Cell};
 use std::ops::{DerefMut, Deref};
-use tokio::net::tcp::{WriteHalf, ReadHalf};
+use tokio::net::tcp::{WriteHalf, ReadHalf, OwnedReadHalf, OwnedWriteHalf};
+use std::rc::Rc;
+use std::borrow::BorrowMut;
 
 
 pub struct Socks5Passive {
@@ -46,7 +48,7 @@ impl InputProxy for Socks5Passive {
         info!("Sock5 start listen");
         loop {
             let out_proxy = &mut self.out_proxy;
-            let (mut tcpstream, addr) = self.tcp_listener.accept().await?;
+            let (tcpstream, addr) = self.tcp_listener.accept().await?;
             let starter = match out_proxy.gen_starter() {
                 Ok(n) => n,
                 Err(_) => continue
@@ -65,27 +67,22 @@ async fn new_proxy(mut input_stream: TcpStream, mut starter: Box<dyn OutProxySta
     let mut connector = Socks5Connector::new(&mut input_stream);
     let info = connector.check().await?;
 
-    let (out_reader,
-        out_writer,
-        mut closer) = starter.new_connect(info).await?;
-    let (read_half, write_half) = input_stream.split();
-    let reader = async {
-        write(write_half, out_reader).await
-    };
-    let writer = async {
-        read(read_half, out_writer).await
-    };
+    let (mut out_reader, mut out_writer) = starter.new_connect(info).await?;
+
+    let (read_half, write_half) = input_stream.into_split();
+    let reader = write(write_half, &mut out_reader);
+    let writer = read(read_half, &mut out_writer);
     // Wait for two future done.
     tokio::select! {
         _ = reader => {}
-        _ = writer => {}
+        _ = writer => { }
     }
-    let _sd_rs = input_stream.shutdown().await;
-    let _closer_rs = closer.shutdown().await;
+    // TODO Don't know TCP will be dropped.
+    // let _sd_rs = input_stream.shutdown().await;
     Ok(())
 }
 
-async fn read(mut input_read: ReadHalf, mut out_writer: Box<dyn ProxyWriter>) -> usize {
+async fn read(mut input_read: OwnedReadHalf, out_writer: &mut Box<dyn ProxyWriter>) -> usize {
     let mut buf = [0u8; 1024];
     let mut total = 0;
     while let Ok(size) = input_read.read(&mut buf).await {
@@ -96,12 +93,14 @@ async fn read(mut input_read: ReadHalf, mut out_writer: Box<dyn ProxyWriter>) ->
     total
 }
 
-async fn write(mut input_write: WriteHalf, mut out_reader: Box<dyn ProxyReader>) -> usize {
+async fn write(mut input_write: OwnedWriteHalf, out_reader: &mut Box<dyn ProxyReader>) -> usize {
     let mut total = 0;
     while let Ok(data) = out_reader.read().await {
         if data.len() == 0 { break; }
         total = total + data.len();
         if input_write.write_all(data.as_ref()).await.is_err() { break; };
     }
+    input_write.shutdown();
+
     total
 }

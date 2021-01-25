@@ -15,11 +15,12 @@ use crate::encrypt::ss::ss_aead::SsAead;
 use crate::net::proxy::{Closer, InputProxy, OutProxyStarter, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
 use crate::socks::socks5::Socks5;
 use tokio::net::{TcpStream, TcpListener};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf};
 use std::net::SocketAddr;
+use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 
 pub struct SsStreamReader {
-    stream: TcpStream,
+    read_half: OwnedReadHalf,
     password: Vec<u8>,
     aead_type: AeadType,
     ss_aead: Option<SsAead>,
@@ -28,9 +29,9 @@ pub struct SsStreamReader {
 }
 
 impl SsStreamReader {
-    pub fn new(stream: TcpStream, password: &str, aead_type: AeadType) -> Self {
+    pub fn new(read_half: OwnedReadHalf, password: &str, aead_type: AeadType) -> Self {
         SsStreamReader {
-            stream,
+            read_half,
             password: password.as_bytes().to_vec(),
             aead_type,
             ss_aead: None,
@@ -47,12 +48,12 @@ impl ProxyReader for SsStreamReader {
     async fn read(&mut self) -> io::Result<&mut [u8]> {
         // Check if this is the first read. If first read,creat the SsAead.
         if self.ss_aead.is_none() {
-            let aead = read_slat_to_aead(&self.aead_type, &mut self.stream, self.password.as_ref()).await?;
+            let aead = read_slat_to_aead(&self.aead_type, &mut self.read_half, self.password.as_ref()).await?;
             self.ss_aead = Some(aead)
         }
         let aead = self.ss_aead.as_mut().unwrap();
         //Read bytes and decrypt byte
-        self.stream.read_exact(&mut self.ss_len_buf).await?;
+        self.read_half.read_exact(&mut self.ss_len_buf).await?;
         let len_vec = decrypt(&mut self.ss_len_buf, aead)?;
         let en_data_len = u16::from_be_bytes([len_vec[0], len_vec[1]]) as usize;
         // Auto
@@ -60,33 +61,41 @@ impl ProxyReader for SsStreamReader {
             self.ss_data_buf = vec![0u8; en_data_len].into_boxed_slice()
         }
         let buf = self.ss_data_buf[..(en_data_len + 16) as usize].as_mut();
-        self.stream.read_exact(buf).await?;
+        self.read_half.read_exact(buf).await?;
         decrypt(buf, aead)
+    }
+
+    async fn shutdown(&mut self) -> io::Result<()> {
+        Ok(())
     }
 }
 
-async fn read_slat_to_aead(aead_type: &AeadType, tcpstream: &mut TcpStream, password: &[u8]) -> io::Result<SsAead> {
+async fn read_slat_to_aead(aead_type: &AeadType, readhalf: &mut OwnedReadHalf, password: &[u8]) -> io::Result<SsAead> {
     let mut salt: Box<[u8]> = match aead_type {
         AeadType::AES128GCM => [0u8; 16].into(),
         AeadType::AES256GCM | AeadType::Chacha20Poly1305 => [0u8; 32].into()
     };
-    tcpstream.read_exact(&mut salt).await?;
+    readhalf.read_exact(&mut salt).await?;
     SsAead::new(salt.into(), password, aead_type).or_else(|e| { Err(change_error(e)) })
 }
 
 pub struct SsStreamWriter {
-    stream: TcpStream,
+    writehalf: OwnedWriteHalf,
     ss_aead: SsAead,
     addr_arr: Option<Box<[u8]>>,
 }
 
 impl SsStreamWriter {
-    pub fn new(stream: TcpStream, ss_aead: SsAead) -> Self {
+    pub fn new(writehalf: OwnedWriteHalf, ss_aead: SsAead) -> Self {
         SsStreamWriter {
-            stream,
+            writehalf,
             ss_aead,
             addr_arr: None,
         }
+    }
+
+    pub async fn shutdown(&mut self) -> io::Result<()> {
+        self.writehalf.shutdown().await
     }
 }
 
@@ -96,15 +105,19 @@ impl ProxyWriter for SsStreamWriter {
         let aead = &mut self.ss_aead;
         let len = raw_data.len() as u16;
         let len_en = encrypt(&mut len.to_be_bytes(), aead)?;
-        self.stream.write_all(len_en.as_ref()).await?;
+        self.writehalf.write_all(len_en.as_ref()).await?;
         let en_data = encrypt(raw_data, aead)?;
-        self.stream.write_all(en_data.as_ref()).await
+        self.writehalf.write_all(en_data.as_ref()).await
     }
 
     async fn write_adderss(&mut self, info: &ProxyInfo) -> io::Result<()> {
-        self.stream.write_all(self.ss_aead.salt.borrow()).await?;
+        self.writehalf.write_all(self.ss_aead.salt.borrow()).await?;
         let mut addr_arr = Socks5::socks5_addr_arr(&info.address, info.port, &info.address_type);
         self.write(&mut addr_arr).await
+    }
+
+    async fn shutdown(&mut self) -> io::Result<()> {
+        self.writehalf.shutdown().await
     }
 }
 
@@ -168,7 +181,7 @@ pub struct SsOutProxyStarter {
 #[async_trait]
 impl OutProxyStarter for SsOutProxyStarter {
     async fn new_connect(&mut self, proxy_info: ProxyInfo) ->
-    io::Result<(Box<dyn ProxyReader>, Box<dyn ProxyWriter>, Box<dyn Closer>)> {
+    io::Result<(Box<dyn ProxyReader>, Box<dyn ProxyWriter>)> {
         debug!("new connect");
         let addr = format!("{}:{}", self.ss_addr, self.ss_port);
         let output_stream = TcpStream::connect(addr).await?;
@@ -176,27 +189,26 @@ impl OutProxyStarter for SsOutProxyStarter {
         let write_salt = gen_random_salt(&self.aead_type);
         let write_ss_aead = SsAead::new(write_salt, self.password.as_bytes(), &self.aead_type)
             .or_else(|e| { Err(change_error(e)) })?;
+        let (mut read_half, mut write_half) = output_stream.into_split();
 
-        let reader = SsStreamReader::new(
-            output_stream.clone(), self.password.as_str(), self.aead_type);
-        let mut writer = SsStreamWriter::new(output_stream.clone(), write_ss_aead);
-        let closer = SsCloser { tcp_stream: output_stream.clone() };
+        let reader = SsStreamReader::new(read_half, self.password.as_str(), self.aead_type);
+        let mut writer = SsStreamWriter::new(write_half, write_ss_aead);
         writer.write_adderss(&proxy_info).await?;
 
-        Ok((Box::new(reader), Box::new(writer), Box::new(closer)))
+        Ok((Box::new(reader), Box::new(writer)))
     }
 }
 //<--<--<--<--<--<--<--<--<--<--<--<--SS_OUT_PROXY--<--<--<--<--<--<--<--<--<--<--<--<
 
 //>-->-->-->-->-->-->-->-->-->-->-->--SS_CLOSER-->-->-->-->-->-->-->-->-->-->-->-->
-pub struct SsCloser {
-    tcp_stream: TcpStream
+pub struct SsCloser<'a> {
+    write_half: &'a mut OwnedWriteHalf,
 }
 
 #[async_trait]
-impl Closer for SsCloser {
+impl<'a> Closer for SsCloser<'a> {
     async fn shutdown(&mut self) -> io::Result<()> {
-        self.tcp_stream.shutdown().await
+        self.write_half.shutdown().await
     }
 }
 //<--<--<--<--<--<--<--<--<--<--<--<--SS_CLOSER--<--<--<--<--<--<--<--<--<--<--<--<
@@ -255,37 +267,32 @@ impl InputProxy for SsInputProxy {
     }
 }
 
-async fn new_ss_proxy(mut input: TcpStream, mut starter: Box<dyn OutProxyStarter>,
+async fn new_ss_proxy(mut tcpstream: TcpStream, mut starter: Box<dyn OutProxyStarter>,
                       aead_type: AeadType, password: String) -> io::Result<()> {
-    let mut ss_reader = SsStreamReader::new(input.clone(), password.as_str(), aead_type.clone());
+    let (readhalf, writehalf) = tcpstream.into_split();
+    let mut ss_reader = SsStreamReader::new(readhalf, password.as_str(), aead_type.clone());
     let write_slat = gen_random_salt(&aead_type);
     let write_aead = SsAead::new(write_slat, password.as_bytes(), &aead_type).or_else(
         |e| { Err(change_error(e)) })?;
-    let ss_writer = SsStreamWriter::new(input.clone(), write_aead);
+    let ss_writer = SsStreamWriter::new(writehalf, write_aead);
 
     let first_read_data = ss_reader.read().await?;
     let (info, read_addr_size) = Socks5::read_to_socket_addrs(first_read_data);
-    let (mut out_reader,
-        mut out_writer,
-        mut closer) = starter.new_connect(info).await?;
+    let (mut out_reader, mut out_writer) = starter.new_connect(info).await?;
 
-    let reader = async {
-        ss_input_write(ss_writer, &mut out_reader).await
-    };
+    let reader = ss_input_write(ss_writer, &mut out_reader);
     let size = first_read_data.len();
     let first_write: Option<Box<[u8]>> = if size == read_addr_size { None } else {
         Some(first_read_data[read_addr_size..].into())
     };
-    let writer = async {
-        ss_input_read(ss_reader, &mut out_writer, first_write).await
-    };
+    let writer = ss_input_read(ss_reader, &mut out_writer, first_write);
     // Wait for two futures done.
     tokio::select! {
         _ = reader => {}
         _ = writer => {}
     }
-    let _sd_rs = input.shutdown().await;
-    let _closer_rs = closer.shutdown();
+    // TODO Dont know TCP will be dropped.
+    // let _sd_rs = input.shutdown().await;
     Ok(())
 }
 
@@ -301,6 +308,8 @@ async fn ss_input_read(
         if size == 0 { break; } else { total = total + size; }
         if out_writer.write(data.as_mut()).await.is_err() { break; }
     }
+    ss_reader.shutdown().await;
+    out_writer.shutdown();
     total
 }
 
@@ -311,6 +320,8 @@ async fn ss_input_write(mut input_write: SsStreamWriter, out_reader: &mut Box<dy
         if size == 0 { break; } else { total = total + size; }
         if input_write.write(data.as_mut()).await.is_err() { break; };
     }
+    input_write.shutdown();
+    out_reader.shutdown();
     total
 }
 

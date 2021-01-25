@@ -1,4 +1,3 @@
-
 use async_trait::async_trait;
 
 use crate::net::AddressType;
@@ -34,7 +33,7 @@ pub trait OutputProxy: Send {
 #[async_trait]
 pub trait OutProxyStarter: Send {
     async fn new_connect(&mut self, proxy_info: ProxyInfo) ->
-    io::Result<(Box<dyn ProxyReader>, Box<dyn ProxyWriter>, Box<dyn Closer>)>;
+    io::Result<(Box<dyn ProxyReader>, Box<dyn ProxyWriter>)>;
 }
 
 #[async_trait]
@@ -45,6 +44,8 @@ pub trait Closer: Send {
 #[async_trait]
 pub trait ProxyReader: Send {
     async fn read(&mut self) -> io::Result<&mut [u8]>;
+
+    async fn shutdown(&mut self) -> io::Result<()>;
 }
 
 #[async_trait]
@@ -52,6 +53,8 @@ pub trait ProxyWriter: Send {
     async fn write(&mut self, raw_data: &mut [u8]) -> io::Result<()>;
 
     async fn write_adderss(&mut self, info: &ProxyInfo) -> io::Result<()>;
+
+    async fn shutdown(&mut self) -> io::Result<()>;
 }
 
 
