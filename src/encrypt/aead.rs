@@ -2,7 +2,7 @@ use crate::encrypt::error::EncryptError;
 use crate::encrypt::error::Result;
 use ring::aead::{BoundKey, SealingKey, Aad, OpeningKey, UnboundKey};
 use crate::encrypt::Nonce;
-use bytes::{BytesMut, BufMut};
+
 
 #[derive(Copy, Clone, Debug)]
 pub enum AeadType {

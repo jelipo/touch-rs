@@ -7,16 +7,16 @@ use crate::core::profile::BasePassiveConfig;
 use crate::net::proxy::{Closer, InputProxy, OutProxyStarter, OutputProxy, ProxyReader, ProxyWriter};
 use crate::socks::socks5_connector::Socks5Connector;
 use std::io::{Error, ErrorKind};
-use std::net::{SocketAddr, Shutdown};
+use std::net::{SocketAddr};
 use tokio::net::{TcpListener, TcpStream};
 use std::io;
 use tokio::io::{AsyncWriteExt, AsyncReadExt};
-use std::sync::Arc;
-use std::cell::{RefCell, Cell};
-use std::ops::{DerefMut, Deref};
-use tokio::net::tcp::{WriteHalf, ReadHalf, OwnedReadHalf, OwnedWriteHalf};
-use std::rc::Rc;
-use std::borrow::BorrowMut;
+
+
+
+use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
+
+
 
 
 pub struct Socks5Passive {
@@ -48,7 +48,7 @@ impl InputProxy for Socks5Passive {
         info!("Sock5 start listen");
         loop {
             let out_proxy = &mut self.out_proxy;
-            let (tcpstream, addr) = self.tcp_listener.accept().await?;
+            let (tcpstream, _addr) = self.tcp_listener.accept().await?;
             let starter = match out_proxy.gen_starter() {
                 Ok(n) => n,
                 Err(_) => continue
@@ -100,7 +100,6 @@ async fn write(mut input_write: OwnedWriteHalf, out_reader: &mut Box<dyn ProxyRe
         total = total + data.len();
         if input_write.write_all(data.as_ref()).await.is_err() { break; };
     }
-    input_write.shutdown();
-
+    input_write.shutdown().await;
     total
 }

@@ -2,16 +2,18 @@ use std::io;
 use std::io::Error;
 use std::io::ErrorKind;
 
-use tokio::runtime::Runtime;
+
 use trust_dns_client::client::{AsyncClient, ClientHandle};
-use trust_dns_client::proto::udp::{UdpClientConnect};
-use trust_dns_client::udp::{UdpClientConnection, UdpClientStream};
+
+use trust_dns_client::udp::{UdpClientStream};
 use trust_dns_client::rr::{Name, DNSClass, RecordType};
 use std::str::FromStr;
 use trust_dns_client::op::DnsResponse;
 use tokio::net::UdpSocket;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, IpAddr};
+use anyhow::{anyhow, Result};
 
+#[derive(Clone)]
 pub struct DnsClient {
     client: AsyncClient
 }
@@ -22,18 +24,21 @@ impl DnsClient {
         if !dns_addr.contains(":") {
             dns_addr = format!("{}:{}", dns_addr, "53")
         }
-        let addr = match SocketAddr::from_str(dns_addr.as_str()) {
-            Ok(addr) => addr,
-            Err(e) => return Err(Error::new(ErrorKind::InvalidInput, e))
-        };
+        let addr = SocketAddr::from_str(dns_addr.as_str())
+            .or_else(|e| Err(Error::new(ErrorKind::InvalidInput, e)))?;
         let stream = UdpClientStream::<UdpSocket>::new(addr);
         let (client, _) = AsyncClient::connect(stream).await?;
         Ok(Self { client })
     }
 
-    pub async fn query(&mut self, domain: String) -> io::Result<DnsResponse> {
+    pub async fn query(&mut self, domain: &str) -> Result<IpAddr> {
         let response = self.client.query(
-            Name::from_str(domain.as_str()).unwrap(), DNSClass::IN, RecordType::A).await.unwrap();
-        Ok(response)
+            Name::from_str(domain)?, DNSClass::IN, RecordType::A).await?;
+        let answers = response.answers();
+        if answers.len() == 0 {
+            Err(anyhow!("Unknow host:{}",domain))
+        } else {
+            Ok(answers[0].rdata().to_ip_addr().unwrap())
+        }
     }
 }

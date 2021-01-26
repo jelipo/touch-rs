@@ -1,17 +1,10 @@
-use std::str::FromStr;
-
-
-use async_trait::async_trait;
-use log::{error, info};
-
-use crate::core::profile::BasePassiveConfig;
-use crate::net::proxy::{Closer, InputProxy, OutProxyStarter, OutputProxy, ProxyReader, ProxyWriter, ProxyInfo};
-use crate::socks::socks5_connector::Socks5Connector;
-use std::net::{SocketAddr, Ipv4Addr};
+use std::net::{SocketAddr};
 use std::io;
-use tokio::net::TcpStream;
-use crate::net::AddressType;
+use crate::net::proxy::{OutputProxy, OutProxyStarter, ProxyInfo, ProxyReader, ProxyWriter};
 use crate::util::address::Address;
+use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
+use tokio::io::AsyncWriteExt;
+
 
 pub struct RawActive {
     dns: Option<SocketAddr>
@@ -26,14 +19,55 @@ impl RawActive {
 }
 
 
-// impl OutputProxy for RawActive {
-//     fn gen_starter(&mut self) -> io::Result<Box<dyn OutProxyStarter>> {
-//         Ok(Box::new(RawOutProxyStarter {
-//             dns: self.dns.clone()
-//         }))
-//     }
-// }
-//
-// pub struct RawOutProxyStarter {
-//     dns: Option<SocketAddr>
-// }
+impl OutputProxy for RawActive {
+    fn gen_starter(&mut self) -> io::Result<Box<dyn OutProxyStarter>> {
+        Ok(Box::new(RawOutProxyStarter {
+            dns: self.dns.clone()
+        }))
+    }
+}
+
+pub struct RawOutProxyStarter {
+    dns: Option<SocketAddr>
+}
+
+impl OutProxyStarter for RawOutProxyStarter {
+    async fn new_connect(&mut self, proxy_info: ProxyInfo) ->
+    io::Result<(Box<dyn ProxyReader>, Box<dyn ProxyWriter>)> {
+        let tcpstream = Address::new_connect(
+            &proxy_info.address, proxy_info.port, &proxy_info.address_type).await?;
+        let (read_half, write_half) = tcpstream.into_split();
+    }
+}
+
+pub struct RawProxyReader {
+    read_half: OwnedReadHalf
+}
+
+impl ProxyReader for RawProxyReader {
+    async fn read(&mut self) -> io::Result<&mut [u8]> {
+        unimplemented!()
+    }
+
+    async fn shutdown(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+pub struct RawProxyWriter {
+    write_half: OwnedWriteHalf
+}
+
+impl ProxyWriter for RawProxyWriter {
+    async fn write(&mut self, raw_data: &mut [u8]) -> io::Result<()> {
+        unimplemented!()
+    }
+
+    async fn write_adderss(&mut self, info: &ProxyInfo) -> io::Result<()> {
+        unimplemented!()
+    }
+
+    async fn shutdown(&mut self) -> io::Result<()> {
+        self.write_half.shutdown().await
+    }
+}
