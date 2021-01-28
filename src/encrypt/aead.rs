@@ -1,8 +1,8 @@
+use ring::aead::{Aad, BoundKey, OpeningKey, SealingKey, UnboundKey};
+
 use crate::encrypt::error::EncryptError;
 use crate::encrypt::error::Result;
-use ring::aead::{BoundKey, SealingKey, Aad, OpeningKey, UnboundKey};
 use crate::encrypt::Nonce;
-
 
 #[derive(Copy, Clone, Debug)]
 pub enum AeadType {

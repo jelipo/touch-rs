@@ -1,18 +1,10 @@
+use std::io;
 use std::path::Path;
-
-
-use crate::core::config::ConfigReader;
-use crate::core::selector::ProtocalSelector;
-
-
-
-
 
 use bytes::BufMut;
 
-
-use std::io;
-
+use crate::core::config::ConfigReader;
+use crate::core::selector::ProtocalSelector;
 
 mod socks;
 mod ss;

@@ -1,6 +1,5 @@
 pub mod ss_stream;
 pub mod proxy;
-mod connect;
 pub mod socks5;
 pub mod raw;
 mod dns;

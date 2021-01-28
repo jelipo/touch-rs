@@ -12,7 +12,7 @@ use crate::core::profile::BasePassiveConfig;
 use crate::encrypt::aead::AeadType;
 use crate::encrypt::error::EncryptError;
 use crate::encrypt::ss::ss_aead::SsAead;
-use crate::net::proxy::{Closer, InputProxy, OutProxyStarter, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
+use crate::net::proxy::{InputProxy, OutProxyStarter, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
 use crate::socks::socks5::Socks5;
 use tokio::net::{TcpStream, TcpListener};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -82,26 +82,31 @@ async fn read_slat_to_aead(aead_type: &AeadType, readhalf: &mut OwnedReadHalf, p
 pub struct SsStreamWriter {
     writehalf: OwnedWriteHalf,
     ss_aead: SsAead,
-    addr_arr: Option<Box<[u8]>>,
+    proxy_info: Option<ProxyInfo>,
 }
 
 impl SsStreamWriter {
-    pub fn new(writehalf: OwnedWriteHalf, ss_aead: SsAead) -> Self {
+    pub fn creat_without_info(writehalf: OwnedWriteHalf, ss_aead: SsAead) -> Self {
         SsStreamWriter {
             writehalf,
             ss_aead,
-            addr_arr: None,
+            proxy_info: None,
+        }
+    }
+
+    pub fn new_with_addr(writehalf: OwnedWriteHalf, ss_aead: SsAead, proxy_info: ProxyInfo) -> Self {
+        SsStreamWriter {
+            writehalf,
+            ss_aead,
+            proxy_info: Some(proxy_info),
         }
     }
 
     pub async fn shutdown(&mut self) -> io::Result<()> {
         self.writehalf.shutdown().await
     }
-}
 
-#[async_trait]
-impl ProxyWriter for SsStreamWriter {
-    async fn write(&mut self, raw_data: &mut [u8]) -> io::Result<()> {
+    async fn en_write(&mut self, raw_data: &mut [u8]) -> io::Result<()> {
         let aead = &mut self.ss_aead;
         let len = raw_data.len() as u16;
         let len_en = encrypt(&mut len.to_be_bytes(), aead)?;
@@ -109,11 +114,18 @@ impl ProxyWriter for SsStreamWriter {
         let en_data = encrypt(raw_data, aead)?;
         self.writehalf.write_all(en_data.as_ref()).await
     }
+}
 
-    async fn write_adderss(&mut self, info: &ProxyInfo) -> io::Result<()> {
-        self.writehalf.write_all(self.ss_aead.salt.borrow()).await?;
-        let mut addr_arr = Socks5::socks5_addr_arr(&info.address, info.port, &info.address_type);
-        self.write(&mut addr_arr).await
+#[async_trait]
+impl ProxyWriter for SsStreamWriter {
+    async fn write(&mut self, raw_data: &mut [u8]) -> io::Result<()> {
+        if let Some(info) = &self.proxy_info {
+            self.writehalf.write_all(self.ss_aead.salt.borrow()).await?;
+            let mut addr_arr = Socks5::socks5_addr_arr(&info.address, info.port, &info.address_type);
+            self.en_write(&mut addr_arr).await?;
+            self.proxy_info = None;
+        }
+        self.en_write(raw_data).await
     }
 
     async fn shutdown(&mut self) -> io::Result<()> {
@@ -192,9 +204,7 @@ impl OutProxyStarter for SsOutProxyStarter {
         let (read_half, write_half) = output_stream.into_split();
 
         let reader = SsStreamReader::new(read_half, self.password.as_str(), self.aead_type);
-        let mut writer = SsStreamWriter::new(write_half, write_ss_aead);
-        writer.write_adderss(&proxy_info).await?;
-
+        let writer = SsStreamWriter::new_with_addr(write_half, write_ss_aead, proxy_info);
         Ok((Box::new(reader), Box::new(writer)))
     }
 }
@@ -231,12 +241,7 @@ impl SsInputProxy {
         info!("Shadowsocks ({:?}) bind in {}", aead_type, addr_str);
         let password = passive.password.clone()
             .ok_or(Error::new(ErrorKind::InvalidInput, "Shadowsocks must have a password"))?;
-        Ok(Self {
-            tcp_listener,
-            password,
-            out_proxy,
-            aead_type,
-        })
+        Ok(Self { tcp_listener, password, out_proxy, aead_type })
     }
 }
 
@@ -268,7 +273,7 @@ async fn new_ss_proxy(tcpstream: TcpStream, mut starter: Box<dyn OutProxyStarter
     let write_slat = gen_random_salt(&aead_type);
     let write_aead = SsAead::new(write_slat, password.as_bytes(), &aead_type).or_else(
         |e| { Err(change_error(e)) })?;
-    let ss_writer = SsStreamWriter::new(writehalf, write_aead);
+    let ss_writer = SsStreamWriter::creat_without_info(writehalf, write_aead);
 
     let first_read_data = ss_reader.read().await?;
     let (info, read_addr_size) = Socks5::read_to_socket_addrs(first_read_data);

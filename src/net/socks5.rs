@@ -1,23 +1,17 @@
+use std::io::{Error, ErrorKind};
+use std::io;
+use std::net::SocketAddr;
 use std::str::FromStr;
 
-
-use log::{error, info};
 use async_trait::async_trait;
-use crate::core::profile::BasePassiveConfig;
-use crate::net::proxy::{Closer, InputProxy, OutProxyStarter, OutputProxy, ProxyReader, ProxyWriter};
-use crate::socks::socks5_connector::Socks5Connector;
-use std::io::{Error, ErrorKind};
-use std::net::{SocketAddr};
+use log::{error, info};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use std::io;
-use tokio::io::{AsyncWriteExt, AsyncReadExt};
-
-
-
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 
-
-
+use crate::core::profile::BasePassiveConfig;
+use crate::net::proxy::{InputProxy, OutProxyStarter, OutputProxy, ProxyReader, ProxyWriter};
+use crate::socks::socks5_connector::Socks5Connector;
 
 pub struct Socks5Passive {
     tcp_listener: TcpListener,
@@ -75,7 +69,7 @@ async fn new_proxy(mut input_stream: TcpStream, mut starter: Box<dyn OutProxySta
     // Wait for two future done.
     tokio::select! {
         _ = reader => {}
-        _ = writer => { }
+        _ = writer => {}
     }
     // TODO Don't know TCP will be dropped.
     // let _sd_rs = input_stream.shutdown().await;
@@ -100,6 +94,6 @@ async fn write(mut input_write: OwnedWriteHalf, out_reader: &mut Box<dyn ProxyRe
         total = total + data.len();
         if input_write.write_all(data.as_ref()).await.is_err() { break; };
     }
-    input_write.shutdown().await;
+    let _result = input_write.shutdown().await;
     total
 }

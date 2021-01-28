@@ -1,10 +1,8 @@
 use std::borrow::Borrow;
 
-use crate::encrypt::aead::{AeadType, AeadEncryptRing, AEAD_TAG_SIZE};
-
+use crate::encrypt::aead::{AEAD_TAG_SIZE, AeadEncryptRing, AeadType};
 use crate::encrypt::error::Result;
-use crate::encrypt::ss::{openssl_bytes_to_key, generate_subkey};
-
+use crate::encrypt::ss::{generate_subkey, openssl_bytes_to_key};
 
 pub struct SsAead {
     encryption: AeadEncryptRing,

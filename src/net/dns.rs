@@ -1,17 +1,14 @@
 use std::io;
 use std::io::Error;
 use std::io::ErrorKind;
-
-
-use trust_dns_client::client::{AsyncClient, ClientHandle};
-
-use trust_dns_client::udp::{UdpClientStream};
-use trust_dns_client::rr::{Name, DNSClass, RecordType};
+use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
-use trust_dns_client::op::DnsResponse;
-use tokio::net::UdpSocket;
-use std::net::{SocketAddr, IpAddr};
+
 use anyhow::{anyhow, Result};
+use tokio::net::UdpSocket;
+use trust_dns_client::client::{AsyncClient, ClientHandle};
+use trust_dns_client::rr::{DNSClass, Name, RecordType};
+use trust_dns_client::udp::UdpClientStream;
 
 #[derive(Clone)]
 pub struct DnsClient {

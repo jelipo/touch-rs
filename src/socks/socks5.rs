@@ -1,6 +1,5 @@
 use std::borrow::Borrow;
 
-
 use crate::net::AddressType;
 use crate::net::proxy::ProxyInfo;
 

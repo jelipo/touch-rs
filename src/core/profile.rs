@@ -53,6 +53,8 @@ pub enum ProtocalType {
     SsAes256Gcm,
     #[serde(alias = "chacha20poly1305")]
     Chacha20Poly1305,
+    #[serde(alias = "raw")]
+    RAW,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

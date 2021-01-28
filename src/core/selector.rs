@@ -1,13 +1,14 @@
 use std::io;
-
+use std::io::ErrorKind;
 
 use crate::core::config::ConfigReader;
 use crate::core::profile::{BaseActiveConfig, BasePassiveConfig, ConnectMode, ProtocalType, ProtocolConf};
 use crate::encrypt::aead::AeadType;
 use crate::net::proxy::{InputProxy, OutputProxy};
 use crate::net::socks5::Socks5Passive;
-use crate::net::ss_stream::SsOutProxy;
-use std::io::ErrorKind;
+use crate::net::ss_stream::{SsInputProxy, SsOutProxy};
+use crate::net::raw::RawActive;
+use futures::FutureExt;
 
 pub struct ProtocalSelector {}
 
@@ -35,6 +36,7 @@ fn select_output(output: &ProtocolConf) -> io::Result<Box<dyn OutputProxy + Send
                 ProtocalType::Chacha20Poly1305 => Box::new(SsOutProxy::new(
                     config.remote_host, config.remote_port,
                     config.password.unwrap(), &change_ss_type(output_name))),
+                ProtocalType::RAW => Box::new(RawActive::new(None)),
                 //ProtocalType::Original => {}
                 // ProtocalType::Socks5 => {}
                 _ => return Err(unsupport_err(output_name, output_mode)),
@@ -60,12 +62,11 @@ async fn select_input(input_conf: &ProtocolConf, output_proxy: Box<dyn OutputPro
             let config: BasePassiveConfig = serde_json::from_value(input_conf.config.clone())?;
             match input_name {
                 //ProtocalType::Original => {}
-                ProtocalType::Socks5 => {
-                    Box::new(Socks5Passive::new(&config, output_proxy).await?)
-                }
-                // ProtocalType::SsAes128Gcm => {}
-                // ProtocalType::SsAes256Gcm => {}
-                // ProtocalType::Chacha20Poly1305 => {}
+                ProtocalType::Socks5 => Box::new(Socks5Passive::new(&config, output_proxy).await?),
+                ProtocalType::SsAes128Gcm |
+                ProtocalType::SsAes256Gcm |
+                ProtocalType::Chacha20Poly1305 => Box::new(SsInputProxy::new(
+                    change_ss_type(input_name), &config, output_proxy).await?),
                 _ => return Err(unsupport_err(input_name, input_mode)),
             }
         }

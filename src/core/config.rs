@@ -5,11 +5,10 @@ use std::net::Ipv4Addr;
 use std::path::Path;
 use std::result::Result::Err;
 
-use log::{error};
+use log::error;
 
 use crate::core::profile::{Profile, ProtocolConf};
 use crate::util::dns::Dns;
-
 
 pub struct ConfigReader {
     pub dns: Option<Ipv4Addr>,
