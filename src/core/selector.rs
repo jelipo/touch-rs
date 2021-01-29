@@ -2,13 +2,12 @@ use std::io;
 use std::io::ErrorKind;
 
 use crate::core::config::ConfigReader;
-use crate::core::profile::{BaseActiveConfig, BasePassiveConfig, ConnectMode, ProtocalType, ProtocolConf};
+use crate::core::profile::{BaseActiveConfig, BasePassiveConfig, ConnectMode, ProtocalType, ProtocolConf, RawActiveConfig};
 use crate::encrypt::aead::AeadType;
 use crate::net::proxy::{InputProxy, OutputProxy};
+use crate::net::raw::RawActive;
 use crate::net::socks5::Socks5Passive;
 use crate::net::ss_stream::{SsInputProxy, SsOutProxy};
-use crate::net::raw::RawActive;
-use futures::FutureExt;
 
 pub struct ProtocalSelector {}
 
@@ -28,15 +27,20 @@ fn select_output(output: &ProtocolConf) -> io::Result<Box<dyn OutputProxy + Send
     let output_mode = output.mode.as_ref().unwrap_or(&ConnectMode::Active);
     let output_proxy: Box<dyn OutputProxy + Send> = match output_mode {
         &ConnectMode::Active => {
-            let config: BaseActiveConfig = serde_json::from_value(output.config.clone())?;
             match output_name {
                 // Shadowsocks AEAD
                 ProtocalType::SsAes256Gcm |
                 ProtocalType::SsAes128Gcm |
-                ProtocalType::Chacha20Poly1305 => Box::new(SsOutProxy::new(
-                    config.remote_host, config.remote_port,
-                    config.password.unwrap(), &change_ss_type(output_name))),
-                ProtocalType::RAW => Box::new(RawActive::new(None)),
+                ProtocalType::Chacha20Poly1305 => {
+                    let config: BaseActiveConfig = serde_json::from_value(output.config.clone())?;
+                    Box::new(SsOutProxy::new(
+                        config.remote_host, config.remote_port,
+                        config.password.unwrap(), &change_ss_type(output_name)))
+                }
+                ProtocalType::RAW => {
+                    let config: RawActiveConfig = serde_json::from_value(output.config.clone())?;
+                    Box::new(RawActive::new(config.dns)?)
+                }
                 //ProtocalType::Original => {}
                 // ProtocalType::Socks5 => {}
                 _ => return Err(unsupport_err(output_name, output_mode)),

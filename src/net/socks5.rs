@@ -43,7 +43,7 @@ impl InputProxy for Socks5Passive {
         loop {
             let out_proxy = &mut self.out_proxy;
             let (tcpstream, _addr) = self.tcp_listener.accept().await?;
-            let starter = match out_proxy.gen_starter() {
+            let starter = match out_proxy.gen_connector() {
                 Ok(n) => n,
                 Err(_) => continue
             };
@@ -61,7 +61,7 @@ async fn new_proxy(mut input_stream: TcpStream, mut starter: Box<dyn OutProxySta
     let mut connector = Socks5Connector::new(&mut input_stream);
     let info = connector.check().await?;
 
-    let (mut out_reader, mut out_writer) = starter.new_connect(info).await?;
+    let (mut out_reader, mut out_writer) = starter.new_connection(info).await?;
 
     let (read_half, write_half) = input_stream.into_split();
     let reader = write(write_half, &mut out_reader);

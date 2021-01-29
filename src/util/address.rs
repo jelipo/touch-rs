@@ -36,7 +36,7 @@ impl Address {
             }
             AddressType::IPv6 => {
                 let mut ip_arr = [0u8; 16];
-                ip_arr.copy_from_slice(&ip_data[0..16]);
+                ip_arr.copy_from_slice(&ip_data[..16]);
                 let ipv6_addr = Ipv6Addr::from(ip_arr);
                 TcpStream::connect(SocketAddrV6::new(ipv6_addr, port, 0, 0)).await
             }

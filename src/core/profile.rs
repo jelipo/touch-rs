@@ -3,8 +3,6 @@ use serde_json::Value;
 
 #[derive(Serialize, Deserialize)]
 pub struct Profile {
-    /// Custom DNS server
-    pub dns: Option<String>,
     pub input: ProtocolConf,
     pub output: ProtocolConf,
 }
@@ -28,6 +26,13 @@ pub struct BaseActiveConfig {
     pub remote_port: u16,
     /// It's an `optional field`, but is `required` for some protocols
     pub password: Option<String>,
+}
+
+/// The config about active raw connection
+#[derive(Serialize, Deserialize)]
+pub struct RawActiveConfig {
+    /// Custom DNS server
+    pub dns: Option<String>,
 }
 
 /// The base config about passive connection

@@ -41,6 +41,9 @@ impl AeadEncryptRing {
         }).or(Err(EncryptError::EncryptErr))
     }
 
+    /// Encrypt the data and replace the data_array content.
+    /// ## Return
+    /// Tag Box array , it should be an array of length 16.
     pub fn encrypt_replace(&mut self, data: &mut [u8]) -> Result<Box<[u8]>> {
         self.sealing_key.seal_in_place_separate_tag(Aad::empty(), data).map(|tag| {
             tag.as_ref().into()
@@ -51,6 +54,9 @@ impl AeadEncryptRing {
         self.opening_key.open_in_place(Aad::empty(), en_data).or(Err(EncryptError::DecryptErr))
     }
 
+    /// Encrypt the data and replace the data_array content.
+    /// ## Return
+    /// The length of the decrypted data.
     pub fn decrypt_replace(&mut self, en_data: &mut [u8]) -> Result<usize> {
         self.opening_key.open_in_place(Aad::empty(), en_data)
             .map(|arr| { arr.len() })

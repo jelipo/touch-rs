@@ -1,12 +1,14 @@
 use std::borrow::Borrow;
-
 use std::io;
 use std::io::{Error, ErrorKind};
+use std::net::SocketAddr;
 use std::str::FromStr;
-
 
 use async_trait::async_trait;
 use log::{debug, error, info};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
+use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 
 use crate::core::profile::BasePassiveConfig;
 use crate::encrypt::aead::AeadType;
@@ -14,10 +16,6 @@ use crate::encrypt::error::EncryptError;
 use crate::encrypt::ss::ss_aead::SsAead;
 use crate::net::proxy::{InputProxy, OutProxyStarter, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
 use crate::socks::socks5::Socks5;
-use tokio::net::{TcpStream, TcpListener};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use std::net::SocketAddr;
-use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 
 pub struct SsStreamReader {
     read_half: OwnedReadHalf,
@@ -56,7 +54,7 @@ impl ProxyReader for SsStreamReader {
         self.read_half.read_exact(&mut self.ss_len_buf).await?;
         let len_vec = decrypt(&mut self.ss_len_buf, aead)?;
         let en_data_len = u16::from_be_bytes([len_vec[0], len_vec[1]]) as usize;
-        // Auto
+        // Automatic capacity expansion
         if en_data_len > self.ss_data_buf.len() {
             self.ss_data_buf = vec![0u8; en_data_len].into_boxed_slice()
         }
@@ -70,6 +68,7 @@ impl ProxyReader for SsStreamReader {
     }
 }
 
+/// Read slat from TCP , and initialize a Shadowsocks AEAD.
 async fn read_slat_to_aead(aead_type: &AeadType, readhalf: &mut OwnedReadHalf, password: &[u8]) -> io::Result<SsAead> {
     let mut salt: Box<[u8]> = match aead_type {
         AeadType::AES128GCM => [0u8; 16].into(),
@@ -173,7 +172,7 @@ impl SsOutProxy {
 }
 
 impl OutputProxy for SsOutProxy {
-    fn gen_starter(&mut self) -> io::Result<Box<dyn OutProxyStarter>> {
+    fn gen_connector(&mut self) -> io::Result<Box<dyn OutProxyStarter>> {
         Ok(Box::new(SsOutProxyStarter {
             ss_addr: self.ss_addr.clone(),
             ss_port: self.ss_port,
@@ -192,7 +191,7 @@ pub struct SsOutProxyStarter {
 
 #[async_trait]
 impl OutProxyStarter for SsOutProxyStarter {
-    async fn new_connect(&mut self, proxy_info: ProxyInfo) ->
+    async fn new_connection(&mut self, proxy_info: ProxyInfo) ->
     io::Result<(Box<dyn ProxyReader>, Box<dyn ProxyWriter>)> {
         debug!("new connect");
         let addr = format!("{}:{}", self.ss_addr, self.ss_port);
@@ -209,14 +208,6 @@ impl OutProxyStarter for SsOutProxyStarter {
     }
 }
 //<--<--<--<--<--<--<--<--<--<--<--<--SS_OUT_PROXY--<--<--<--<--<--<--<--<--<--<--<--<
-
-//>-->-->-->-->-->-->-->-->-->-->-->--SS_CLOSER-->-->-->-->-->-->-->-->-->-->-->-->
-pub struct SsCloser<'a> {
-    write_half: &'a mut OwnedWriteHalf,
-}
-
-//<--<--<--<--<--<--<--<--<--<--<--<--SS_CLOSER--<--<--<--<--<--<--<--<--<--<--<--<
-
 
 //>-->-->-->-->-->-->-->-->-->-->-->--SS_INPUT_PROXY-->-->-->-->-->-->-->-->-->-->-->-->
 
@@ -251,7 +242,7 @@ impl InputProxy for SsInputProxy {
         info!("Shadowsocks start listen");
         loop {
             let (tcpstream, _addr) = self.tcp_listener.accept().await?;
-            let starter = match self.out_proxy.gen_starter() {
+            let starter = match self.out_proxy.gen_connector() {
                 Ok(n) => n,
                 Err(_) => continue
             };
@@ -277,7 +268,7 @@ async fn new_ss_proxy(tcpstream: TcpStream, mut starter: Box<dyn OutProxyStarter
 
     let first_read_data = ss_reader.read().await?;
     let (info, read_addr_size) = Socks5::read_to_socket_addrs(first_read_data);
-    let (mut out_reader, mut out_writer) = starter.new_connect(info).await?;
+    let (mut out_reader, mut out_writer) = starter.new_connection(info).await?;
 
     let reader = ss_input_write(ss_writer, &mut out_reader);
     let size = first_read_data.len();

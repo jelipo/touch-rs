@@ -5,20 +5,6 @@ use async_trait::async_trait;
 
 use crate::net::AddressType;
 
-pub struct Proxy<A: ToSocketAddrs> {
-    addredd_type: AddressType,
-    socket_addr: Box<A>,
-}
-
-impl<A: ToSocketAddrs> Proxy<A> {
-    fn new(addredd_type: AddressType, socket_addr: A) -> Self {
-        Proxy {
-            addredd_type,
-            socket_addr: Box::new(socket_addr),
-        }
-    }
-}
-
 #[async_trait]
 pub trait InputProxy {
     /// Start proxy.
@@ -27,13 +13,14 @@ pub trait InputProxy {
 
 
 pub trait OutputProxy: Send {
-    /// Creat a new output proxy starter.
-    fn gen_starter(&mut self) -> io::Result<Box<dyn OutProxyStarter>>;
+    /// Creat a new output proxy connector.
+    fn gen_connector(&mut self) -> io::Result<Box<dyn OutProxyStarter>>;
 }
 
 #[async_trait]
 pub trait OutProxyStarter: Send {
-    async fn new_connect(&mut self, proxy_info: ProxyInfo) ->
+    /// Creat a new connection.
+    async fn new_connection(&mut self, proxy_info: ProxyInfo) ->
     io::Result<(Box<dyn ProxyReader>, Box<dyn ProxyWriter>)>;
 }
 

@@ -1,44 +1,53 @@
 use std::borrow::BorrowMut;
 use std::io;
-use std::net::SocketAddr;
 
 use async_trait::async_trait;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 
+use crate::net::dns::DnsClient;
 use crate::net::proxy::{OutProxyStarter, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
 use crate::util::address::Address;
+use crate::net::AddressType;
+use tokio::net::TcpStream;
 
 pub struct RawActive {
-    dns: Option<SocketAddr>
+    dns: Option<DnsClient>
 }
 
 /// Send raw data to dest server
 impl RawActive {
     /// Init raw active.
-    pub fn new(dns: Option<SocketAddr>) -> Self {
-        Self { dns }
+    pub fn new(dns_config: Option<String>) -> io::Result<Self> {
+        let dns = match dns_config {
+            Some(dns_str) => Some(DnsClient::new(dns_str)?),
+            None => None
+        };
+        Ok(Self { dns })
     }
 }
 
 impl OutputProxy for RawActive {
-    fn gen_starter(&mut self) -> io::Result<Box<dyn OutProxyStarter>> {
-        Ok(Box::new(RawOutProxyStarter {
-            dns: self.dns.clone()
-        }))
+    fn gen_connector(&mut self) -> io::Result<Box<dyn OutProxyStarter>> {
+        Ok(Box::new(RawOutProxyStarter { dns: self.dns.clone() }))
     }
 }
 
 pub struct RawOutProxyStarter {
-    dns: Option<SocketAddr>
+    dns: Option<DnsClient>
 }
 
 #[async_trait]
 impl OutProxyStarter for RawOutProxyStarter {
-    async fn new_connect(&mut self, proxy_info: ProxyInfo) ->
+    async fn new_connection(&mut self, proxy_info: ProxyInfo) ->
     io::Result<(Box<dyn ProxyReader>, Box<dyn ProxyWriter>)> {
-        let tcpstream = Address::new_connect(
-            &proxy_info.address, proxy_info.port, &proxy_info.address_type).await?;
+        let tcpstream = if (proxy_info.address_type == AddressType::Domain) && self.dns.is_some() {
+            let client = self.dns.as_mut().unwrap();
+            let ip_addr = client.query(&proxy_info.address).await?;
+            TcpStream::connect(ip_addr).await?
+        } else {
+            Address::new_connect(&proxy_info.address, proxy_info.port, &proxy_info.address_type).await?
+        };
         let (read_half, write_half) = tcpstream.into_split();
         let writer = RawProxyWriter::new(write_half);
         let reader = RawProxyReader::new(read_half);

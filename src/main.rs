@@ -39,12 +39,3 @@ async fn main() -> io::Result<()> {
 //     println!("{:?}", String::from_utf8(data.to_vec()).unwrap().as_str());
 //     Ok(())
 // }
-
-fn test_bytes() {
-    let mut arr = vec![];
-    arr.put(&b"aaaa"[..]);
-    println!("{:?}", arr);
-
-    (&mut arr[..1]).put(&b"bb"[..]);
-    println!("{:?}", arr);
-}
