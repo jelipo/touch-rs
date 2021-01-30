@@ -11,6 +11,7 @@ pub enum AeadType {
     Chacha20Poly1305,
 }
 
+/// AEAD default tag size
 pub const AEAD_TAG_SIZE: usize = 16;
 
 pub struct AeadEncryptRing {

@@ -24,6 +24,7 @@ impl Address {
         }
     }
 
+    /// Creat a new TCP connect with [AddressType]
     pub async fn new_connect(ip_data: &[u8], port: u16, addr_type: &AddressType) -> io::Result<TcpStream> {
         match addr_type {
             AddressType::IPv4 => {

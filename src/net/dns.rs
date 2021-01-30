@@ -18,6 +18,8 @@ pub struct DnsClient {
 }
 
 impl DnsClient {
+    /// Creat a new DNS client.
+    /// Uses UDP to query
     pub fn new(dns_addr: String) -> io::Result<Self> {
         let mut dns_addr = dns_addr.clone();
         if !dns_addr.contains(":") {
@@ -28,6 +30,7 @@ impl DnsClient {
         Ok(Self { socket_addr: addr, client: None })
     }
 
+    /// Query IP of the doamin name.
     pub async fn query(&mut self, domain: &[u8]) -> Option<IpAddr> {
         if self.client.is_none() {
             let stream = UdpClientStream::<UdpSocket>::new(self.socket_addr);

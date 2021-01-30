@@ -85,6 +85,9 @@ pub struct SsStreamWriter {
 }
 
 impl SsStreamWriter {
+    /// Create a pure Shadowsocks writer.
+    /// It will only faithfully send the en_data you want to transmit,
+    /// and will not automatically send the ss_header.
     pub fn creat_without_info(writehalf: OwnedWriteHalf, ss_aead: SsAead) -> Self {
         SsStreamWriter {
             writehalf,
@@ -93,6 +96,8 @@ impl SsStreamWriter {
         }
     }
 
+    /// Creat a new [SsStreamWriter] with [ProxyInfo], and this writer will send
+    /// a bytes of ss_header when you first write.
     pub fn new_with_addr(writehalf: OwnedWriteHalf, ss_aead: SsAead, proxy_info: ProxyInfo) -> Self {
         SsStreamWriter {
             writehalf,

@@ -19,7 +19,7 @@ pub trait OutputProxy: Send {
 
 #[async_trait]
 pub trait OutProxyStarter: Send {
-    /// Creat a new connection.
+    /// Creat a new OUT_PROXY connection.
     async fn new_connection(&mut self, proxy_info: ProxyInfo) ->
     io::Result<(Box<dyn ProxyReader>, Box<dyn ProxyWriter>)>;
 }
