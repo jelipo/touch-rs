@@ -74,9 +74,7 @@ impl<'a> Socks5Connector<'a> {
 
     /// 从TCP流中读取域名版的地址
     async fn read_domain_address(&mut self) -> Result<Box<Vec<u8>>> {
-        let mut length_arr = [0u8; 1];
-        self.tcp_stream.read_exact(&mut length_arr).await?;
-        let length = length_arr[0];
+        let length = self.tcp_stream.read_u8().await?;
         let mut domain_addr = Box::new(vec![0u8; length as usize]);
         self.tcp_stream.read_exact(domain_addr.as_mut()).await?;
         Ok(domain_addr)
@@ -84,9 +82,8 @@ impl<'a> Socks5Connector<'a> {
 
     /// 从TCP流中读取端口号
     async fn read_port(&mut self) -> Result<u16> {
-        let mut length_arr = [0u8; 2];
-        self.tcp_stream.read_exact(&mut length_arr).await?;
-        Ok(u16::from_be_bytes(length_arr))
+        let len = self.tcp_stream.read_u16().await?;
+        Ok(len)
     }
 
     /// 向客户端写入连接成功的消息
