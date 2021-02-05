@@ -42,13 +42,13 @@ impl InputProxy for Socks5Passive {
         info!("Sock5 start listen");
         loop {
             let out_proxy = &mut self.out_proxy;
-            let (tcpstream, _addr) = self.tcp_listener.accept().await?;
+            let (tcp_stream, _addr) = self.tcp_listener.accept().await?;
             let starter = match out_proxy.gen_connector() {
                 Ok(n) => n,
                 Err(_) => continue
             };
             tokio::task::spawn(async move {
-                if let Err(e) = new_proxy(tcpstream, starter).await {
+                if let Err(e) = new_proxy(tcp_stream, starter).await {
                     error!("Socks5 proxy error. {}", e)
                 };
             });
@@ -96,4 +96,13 @@ async fn write(mut input_write: OwnedWriteHalf, out_reader: &mut Box<dyn ProxyRe
     }
     let _result = input_write.shutdown().await;
     total
+}
+
+
+pub struct Socks5Active {}
+
+impl Socks5Active {
+    pub fn new() -> Self {
+
+    }
 }

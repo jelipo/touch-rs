@@ -1,5 +1,7 @@
 use std::borrow::BorrowMut;
 use std::io;
+use std::io::Error;
+use std::net::SocketAddr;
 
 use async_trait::async_trait;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, ErrorKind};
@@ -10,8 +12,6 @@ use crate::net::AddressType;
 use crate::net::dns::DnsClient;
 use crate::net::proxy::{OutProxyStarter, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
 use crate::util::address::Address;
-use std::io::Error;
-use std::net::SocketAddr;
 
 pub struct RawActive {
     dns: Option<DnsClient>
@@ -21,10 +21,7 @@ pub struct RawActive {
 impl RawActive {
     /// Init raw active.
     pub fn new(dns_config: Option<String>) -> io::Result<Self> {
-        let dns = match dns_config {
-            Some(dns_str) => Some(DnsClient::new(dns_str)?),
-            None => None
-        };
+        let dns = dns_config.and_then(|dns_str| DnsClient::new(dns_str).ok());
         Ok(Self { dns })
     }
 }
@@ -65,10 +62,7 @@ pub struct RawProxyReader {
 
 impl RawProxyReader {
     pub fn new(read_half: OwnedReadHalf) -> Self {
-        Self {
-            read_half,
-            buf: vec![0u8; 32 * 1024].into_boxed_slice(),
-        }
+        Self { read_half, buf: vec![0u8; 32 * 1024].into_boxed_slice() }
     }
 }
 
