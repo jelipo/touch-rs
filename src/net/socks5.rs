@@ -1,6 +1,6 @@
 use std::io::{Error, ErrorKind};
 use std::io;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 
 use async_trait::async_trait;
@@ -9,9 +9,9 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 
-use crate::core::profile::BasePassiveConfig;
-use crate::net::proxy::{InputProxy, OutProxyStarter, OutputProxy, ProxyReader, ProxyWriter};
-use crate::socks::socks5_connector::Socks5Connector;
+use crate::core::profile::{BaseActiveConfig, BasePassiveConfig};
+use crate::net::proxy::{InputProxy, OutProxyStarter, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
+use crate::socks::socks5_connector::{Sock5ClientConnector, Socks5Server};
 
 pub struct Socks5Passive {
     tcp_listener: TcpListener,
@@ -58,8 +58,8 @@ impl InputProxy for Socks5Passive {
 
 
 async fn new_proxy(mut input_stream: TcpStream, mut starter: Box<dyn OutProxyStarter>) -> io::Result<()> {
-    let mut connector = Socks5Connector::new(&mut input_stream);
-    let info = connector.check().await?;
+    let mut connector = Socks5Server::new(&mut input_stream);
+    let info = connector.accept_check().await?;
 
     let (mut out_reader, mut out_writer) = starter.new_connection(info).await?;
 
@@ -98,11 +98,89 @@ async fn write(mut input_write: OwnedWriteHalf, out_reader: &mut Box<dyn ProxyRe
     total
 }
 
+//----------------------Socks5Active--------------------
 
-pub struct Socks5Active {}
+pub struct Socks5Active {
+    socket_addr: SocketAddr
+}
 
 impl Socks5Active {
-    pub fn new() -> Self {
-
+    pub fn new(active: &BaseActiveConfig) -> io::Result<Self> {
+        let ip_addr = IpAddr::from_str(&active.remote_host)
+            .or_else(|e| Err(Error::new(ErrorKind::InvalidInput, e)))?;
+        let socket_addr = SocketAddr::new(ip_addr, active.remote_port);
+        Ok(Self { socket_addr })
     }
 }
+
+impl OutputProxy for Socks5Active {
+    fn gen_connector(&mut self) -> io::Result<Box<dyn OutProxyStarter>> {
+        let starter = Socks5OutProxyStarter { socket_addr: self.socket_addr.clone() };
+        Ok(Box::new(starter))
+    }
+}
+
+struct Socks5OutProxyStarter {
+    socket_addr: SocketAddr
+}
+
+#[async_trait]
+impl OutProxyStarter for Socks5OutProxyStarter {
+    async fn new_connection(&mut self, proxy_info: ProxyInfo) -> io::Result<(Box<dyn ProxyReader>, Box<dyn ProxyWriter>)> {
+        let mut tcp_stream = TcpStream::connect(self.socket_addr.clone()).await?;
+        let mut connector = Sock5ClientConnector::new(&mut tcp_stream);
+        connector.try_connect(&proxy_info).await?;
+        let (half_reader, half_writer) = tcp_stream.into_split();
+        let reader = Socks5Redaer::new(half_reader);
+        let writer = Socks5Writer::new(half_writer);
+        Ok((Box::new(reader), Box::new(writer)))
+    }
+}
+
+//--------------------------SOCKS5_READER_AND_WRITER-----------------------
+
+struct Socks5Redaer {
+    read_half: OwnedReadHalf,
+    buffer: Box<[u8]>,
+}
+
+impl Socks5Redaer {
+    pub fn new(read_half: OwnedReadHalf) -> Self {
+        Self { read_half, buffer: vec![0u8; 32 * 1024].into_boxed_slice() }
+    }
+}
+
+#[async_trait]
+impl ProxyReader for Socks5Redaer {
+    async fn read(&mut self) -> io::Result<&mut [u8]> {
+        let read_size = self.read_half.read(&mut self.buffer).await?;
+        if read_size == 0 { return Err(Error::new(ErrorKind::InvalidInput, "Socks5 read size is 0.")); }
+        Ok(&mut self.buffer[..read_size])
+    }
+
+    async fn shutdown(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+struct Socks5Writer {
+    write_half: OwnedWriteHalf,
+}
+
+impl Socks5Writer {
+    pub fn new(write_half: OwnedWriteHalf) -> Self {
+        Self { write_half }
+    }
+}
+
+#[async_trait]
+impl ProxyWriter for Socks5Writer {
+    async fn write(&mut self, raw_data: &mut [u8]) -> io::Result<()> {
+        self.write_half.write_all(raw_data).await
+    }
+
+    async fn shutdown(&mut self) -> io::Result<()> {
+        self.write_half.shutdown().await
+    }
+}
+

@@ -54,7 +54,7 @@ impl AddressType {
             0x01 => Ok(AddressType::IPv4),
             0x03 => Ok(AddressType::Domain),
             0x04 => Ok(AddressType::IPv6),
-            _ => Err(Error::new(ErrorKind::InvalidInput, "暂不支持BIND方法")),
+            n => Err(Error::new(ErrorKind::InvalidInput, format!("未支持的Socks5地址类型:{}", n))),
         }
     }
 }
