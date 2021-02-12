@@ -6,15 +6,13 @@ use std::str::FromStr;
 
 use anyhow::{anyhow, Result};
 use tokio::net::UdpSocket;
-use trust_dns_client::client::{AsyncClient, ClientHandle};
-use trust_dns_client::rr::{DNSClass, Name, RecordType};
-use trust_dns_client::serialize::binary::BinDecodable;
-use trust_dns_client::udp::UdpClientStream;
+use trust_dns_resolver::config::{NameServerConfig, ResolverConfig, ResolverOpts};
+use trust_dns_resolver::{TokioAsyncResolver, Name};
+use trust_dns_resolver::proto::serialize::binary::BinDecodable;
 
 #[derive(Clone)]
 pub struct DnsClient {
-    socket_addr: SocketAddr,
-    client: Option<AsyncClient>,
+    resolver: TokioAsyncResolver
 }
 
 impl DnsClient {
@@ -27,20 +25,21 @@ impl DnsClient {
         }
         let addr = SocketAddr::from_str(dns_addr.as_str())
             .or_else(|e| Err(Error::new(ErrorKind::InvalidInput, e)))?;
-        Ok(Self { socket_addr: addr, client: None })
+        let mut config = ResolverConfig::new();
+        config.add_name_server(NameServerConfig {
+            socket_addr: addr,
+            protocol: Default::default(),
+            tls_dns_name: None,
+            trust_nx_responses: false,
+        });
+        let resolver = TokioAsyncResolver::tokio(config, ResolverOpts::default())?;
+        Ok(Self { resolver })
     }
 
     /// Query IP of the domain name.
-    pub async fn query(&mut self, domain: &[u8]) -> Option<IpAddr> {
-        if self.client.is_none() {
-            let stream = UdpClientStream::<UdpSocket>::new(self.socket_addr);
-            let (client, _) = AsyncClient::connect(stream).await.ok()?;
-            self.client = Some(client);
-        }
-        let client = self.client.as_mut().unwrap();
-        let response = client.query(
-            Name::from_bytes(domain).ok()?, DNSClass::IN, RecordType::A).await.ok()?;
-        let answers = response.answers();
-        if answers.len() == 0 { None } else { Some(answers[0].rdata().to_ip_addr().unwrap()) }
+    pub async fn query(&self, domain: &[u8]) -> Option<IpAddr> {
+        let name = Name::from_bytes(domain).ok()?;
+        let response = self.resolver.lookup_ip(name).await.ok()?;
+        response.iter().next()
     }
 }
