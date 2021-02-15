@@ -30,7 +30,7 @@ cargo build --release
  2. Make sure you use this directory structure.
 ```
 (root dir)
-    ├--config
+    ├--conf
     |   └--config.json
     └--touch-rs.exe / touch-rs
 ```
