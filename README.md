@@ -32,9 +32,9 @@ cargo build --release
 (root dir)
     ├--config
     |   └--config.json
-    └--touch-rust.exe / touch-rust
+    └--touch-rs.exe / touch-rs
 ```
- 3. run `./touch-rust`
+ 3. run `./touch-rs`
 
 ## Status
 |        protocol         |support|
