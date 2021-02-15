@@ -1,7 +1,8 @@
-use std::borrow::BorrowMut;
+use std::borrow::{BorrowMut, Borrow};
 use std::io;
 use std::io::Error;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, IpAddr};
+use std::rc::Rc;
 
 use async_trait::async_trait;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, ErrorKind};
@@ -12,9 +13,11 @@ use crate::net::AddressType;
 use crate::net::dns::DnsClient;
 use crate::net::proxy::{OutProxyStarter, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
 use crate::util::address::Address;
+use std::sync::Arc;
+use std::ops::Deref;
 
 pub struct RawActive {
-    dns: Option<DnsClient>
+    dns: Arc<Option<DnsClient>>
 }
 
 /// Send raw data to dest server
@@ -22,7 +25,7 @@ impl RawActive {
     /// Init raw active.
     pub fn new(dns_config: Option<String>) -> io::Result<Self> {
         let dns = dns_config.and_then(|dns_str| DnsClient::new(dns_str).ok());
-        Ok(Self { dns })
+        Ok(Self { dns: Arc::new(dns) })
     }
 }
 
@@ -33,18 +36,24 @@ impl OutputProxy for RawActive {
 }
 
 pub struct RawOutProxyStarter {
-    dns: Option<DnsClient>
+    dns: Arc<Option<DnsClient>>
 }
 
 #[async_trait]
 impl OutProxyStarter for RawOutProxyStarter {
     async fn new_connection(&mut self, proxy_info: ProxyInfo) ->
     io::Result<(Box<dyn ProxyReader>, Box<dyn ProxyWriter>)> {
-        let tcpstream = if (proxy_info.address_type == AddressType::Domain) && self.dns.is_some() {
-            let client = self.dns.as_mut().unwrap();
-            let ip_addr = client.query(&proxy_info.address).await
-                .ok_or(Error::new(ErrorKind::InvalidInput, "Unknow host"))?;
-            TcpStream::connect((ip_addr, proxy_info.port)).await?
+        let tcpstream = if proxy_info.address_type == AddressType::Domain {
+            let domain_str = String::from_utf8_lossy(&proxy_info.address);
+            if let Some(client) = self.dns.borrow() {
+                // Query domain IP address
+                let ip_addr = client.query(&proxy_info.address).await
+                    .ok_or(Error::new(ErrorKind::InvalidInput, "Unknow host"))?;
+                TcpStream::connect((ip_addr, proxy_info.port)).await?
+            } else {
+                let address = format!("{}:{}", domain_str, proxy_info.port);
+                TcpStream::connect(&address).await?
+            }
         } else {
             Address::new_connect(&proxy_info.address, proxy_info.port, &proxy_info.address_type).await?
         };
