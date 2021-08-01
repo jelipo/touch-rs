@@ -4,7 +4,7 @@ use std::path::Path;
 use bytes::BufMut;
 
 use crate::core::config::ConfigReader;
-use crate::core::selector::ProtocalSelector;
+use crate::core::selector::ProtocolSelector;
 
 mod socks;
 mod ss;
@@ -24,7 +24,7 @@ async fn main() -> io::Result<()> {
 
     let path = Path::new("./conf/config.json");
     let reader = ConfigReader::read_config(path)?;
-    ProtocalSelector::select(&reader).await
+    ProtocolSelector::select(&reader).await
 }
 
 // async fn listen() -> io::Result<()> {

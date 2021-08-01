@@ -9,9 +9,9 @@ use crate::net::raw::RawActive;
 use crate::net::socks5::Socks5Passive;
 use crate::net::ss_stream::{SsInputProxy, SsOutProxy};
 
-pub struct ProtocalSelector {}
+pub struct ProtocolSelector {}
 
-impl ProtocalSelector {
+impl ProtocolSelector {
     pub async fn select(config_reader: &ConfigReader) -> io::Result<()> {
         let output_proxy = select_output(&config_reader.output)?;
         let mut input_proxy = select_input(&config_reader.input, output_proxy).await?;
@@ -65,7 +65,7 @@ async fn select_input(input_conf: &ProtocolConf, output_proxy: Box<dyn OutputPro
         &ConnectMode::Passive => {
             let config: BasePassiveConfig = serde_json::from_value(input_conf.config.clone())?;
             match input_name {
-                //ProtocalType::Original => {}
+                //ProtocolType::Original => {}
                 ProtocalType::Socks5 => Box::new(Socks5Passive::new(&config, output_proxy).await?),
                 ProtocalType::SsAes128Gcm |
                 ProtocalType::SsAes256Gcm |
