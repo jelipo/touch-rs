@@ -4,15 +4,14 @@ use std::io::ErrorKind;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 
-use anyhow::{anyhow, Result};
 use tokio::net::UdpSocket;
+use trust_dns_resolver::{Name, TokioAsyncResolver};
 use trust_dns_resolver::config::{NameServerConfig, ResolverConfig, ResolverOpts};
-use trust_dns_resolver::{TokioAsyncResolver, Name};
 use trust_dns_resolver::proto::serialize::binary::BinDecodable;
 
 #[derive(Clone)]
 pub struct DnsClient {
-    resolver: TokioAsyncResolver
+    resolver: TokioAsyncResolver,
 }
 
 impl DnsClient {
