@@ -12,23 +12,32 @@ impl Socks5 {
     pub fn read_to_socket_addrs(bytes: &[u8]) -> (ProxyInfo, usize) {
         let addr_type = bytes[0];
         match addr_type {
-            0x01 => (ProxyInfo {
-                address_type: AddressType::IPv4,
-                address: Box::new(vec![bytes[1], bytes[2], bytes[3], bytes[4]]),
-                port: u16::from_be_bytes([bytes[5], bytes[6]]),
-            }, 7),
-            0x04 => (ProxyInfo {
-                address_type: AddressType::IPv6,
-                address: Box::new(bytes[1..17].to_vec()),
-                port: u16::from_be_bytes([bytes[17], bytes[18]]),
-            }, 19),
+            0x01 => (
+                ProxyInfo {
+                    address_type: AddressType::IPv4,
+                    address: vec![bytes[1], bytes[2], bytes[3], bytes[4]],
+                    port: u16::from_be_bytes([bytes[5], bytes[6]]),
+                },
+                7,
+            ),
+            0x04 => (
+                ProxyInfo {
+                    address_type: AddressType::IPv6,
+                    address: bytes[1..17].to_vec(),
+                    port: u16::from_be_bytes([bytes[17], bytes[18]]),
+                },
+                19,
+            ),
             _ => {
                 let domain_len = bytes[1] as usize;
-                (ProxyInfo {
-                    address_type: AddressType::IPv6,
-                    address: Box::new(bytes[2..(domain_len + 2)].to_vec()),
-                    port: u16::from_be_bytes([bytes[domain_len + 2], bytes[domain_len + 3]]),
-                }, 4 + domain_len)
+                (
+                    ProxyInfo {
+                        address_type: AddressType::IPv6,
+                        address: bytes[2..(domain_len + 2)].to_vec(),
+                        port: u16::from_be_bytes([bytes[domain_len + 2], bytes[domain_len + 3]]),
+                    },
+                    4 + domain_len,
+                )
             }
         }
     }
@@ -60,7 +69,6 @@ impl Socks5 {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {

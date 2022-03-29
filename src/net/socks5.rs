@@ -1,13 +1,13 @@
-use std::io::{Error, ErrorKind};
 use std::io;
+use std::io::{Error, ErrorKind};
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 
 use async_trait::async_trait;
 use log::{error, info};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
+use tokio::net::{TcpListener, TcpStream};
 
 use crate::core::profile::{BaseActiveConfig, BasePassiveConfig};
 use crate::net::proxy::{InputProxy, OutProxyStarter, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
@@ -23,9 +23,7 @@ impl Socks5Passive {
     /// Init Socks5 Passive. And try to bind host and port
     pub async fn new(passive: &BasePassiveConfig, out_proxy: Box<dyn OutputProxy + Send>) -> io::Result<Self> {
         let addr_str = format!("{}:{}", &passive.local_host, passive.local_port);
-        let addr = SocketAddr::from_str(addr_str.as_str()).or(
-            Err(Error::new(ErrorKind::InvalidInput, "Error address"))
-        );
+        let addr = SocketAddr::from_str(addr_str.as_str()).map_err(|_| Error::new(ErrorKind::InvalidInput, "Error address"));
         let tcp_listener = TcpListener::bind(addr?).await?;
         info!("Socks5 bind in {}", addr_str);
         Ok(Self {
@@ -45,7 +43,7 @@ impl InputProxy for Socks5Passive {
             let (tcp_stream, _addr) = self.tcp_listener.accept().await?;
             let starter = match out_proxy.gen_connector() {
                 Ok(n) => n,
-                Err(_) => continue
+                Err(_) => continue,
             };
             tokio::task::spawn(async move {
                 if let Err(e) = new_proxy(tcp_stream, starter).await {
@@ -55,7 +53,6 @@ impl InputProxy for Socks5Passive {
         }
     }
 }
-
 
 async fn new_proxy(mut input_stream: TcpStream, mut starter: Box<dyn OutProxyStarter>) -> io::Result<()> {
     let mut connector = Socks5Server::new(&mut input_stream);
@@ -80,9 +77,13 @@ async fn read(mut input_read: OwnedReadHalf, out_writer: &mut Box<dyn ProxyWrite
     let mut buf = [0u8; 1024];
     let mut total = 0;
     while let Ok(size) = input_read.read(&mut buf).await {
-        if size == 0 { break; }
-        total = total + size;
-        if out_writer.write(&mut buf[..size]).await.is_err() { break; }
+        if size == 0 {
+            break;
+        }
+        total += size;
+        if out_writer.write(&mut buf[..size]).await.is_err() {
+            break;
+        }
     }
     total
 }
@@ -90,9 +91,13 @@ async fn read(mut input_read: OwnedReadHalf, out_writer: &mut Box<dyn ProxyWrite
 async fn write(mut input_write: OwnedWriteHalf, out_reader: &mut Box<dyn ProxyReader>) -> usize {
     let mut total = 0;
     while let Ok(data) = out_reader.read().await {
-        if data.len() == 0 { break; }
-        total = total + data.len();
-        if input_write.write_all(data.as_ref()).await.is_err() { break; };
+        if data.is_empty() {
+            break;
+        }
+        total += data.len();
+        if input_write.write_all(data.as_ref()).await.is_err() {
+            break;
+        };
     }
     let _result = input_write.shutdown().await;
     total
@@ -101,13 +106,12 @@ async fn write(mut input_write: OwnedWriteHalf, out_reader: &mut Box<dyn ProxyRe
 //----------------------Socks5Active--------------------
 
 pub struct Socks5Active {
-    socket_addr: SocketAddr
+    socket_addr: SocketAddr,
 }
 
 impl Socks5Active {
     pub fn new(active: &BaseActiveConfig) -> io::Result<Self> {
-        let ip_addr = IpAddr::from_str(&active.remote_host)
-            .or_else(|e| Err(Error::new(ErrorKind::InvalidInput, e)))?;
+        let ip_addr = IpAddr::from_str(&active.remote_host).map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
         let socket_addr = SocketAddr::new(ip_addr, active.remote_port);
         Ok(Self { socket_addr })
     }
@@ -115,19 +119,21 @@ impl Socks5Active {
 
 impl OutputProxy for Socks5Active {
     fn gen_connector(&mut self) -> io::Result<Box<dyn OutProxyStarter>> {
-        let starter = Socks5OutProxyStarter { socket_addr: self.socket_addr.clone() };
+        let starter = Socks5OutProxyStarter {
+            socket_addr: self.socket_addr,
+        };
         Ok(Box::new(starter))
     }
 }
 
 struct Socks5OutProxyStarter {
-    socket_addr: SocketAddr
+    socket_addr: SocketAddr,
 }
 
 #[async_trait]
 impl OutProxyStarter for Socks5OutProxyStarter {
     async fn new_connection(&mut self, proxy_info: ProxyInfo) -> io::Result<(Box<dyn ProxyReader>, Box<dyn ProxyWriter>)> {
-        let mut tcp_stream = TcpStream::connect(self.socket_addr.clone()).await?;
+        let mut tcp_stream = TcpStream::connect(self.socket_addr).await?;
         let mut connector = Sock5ClientConnector::new(&mut tcp_stream);
         connector.try_connect(&proxy_info).await?;
         let (half_reader, half_writer) = tcp_stream.into_split();
@@ -141,12 +147,15 @@ impl OutProxyStarter for Socks5OutProxyStarter {
 
 struct Socks5Redaer {
     read_half: OwnedReadHalf,
-    buffer: Box<[u8]>,
+    buffer: Vec<u8>,
 }
 
 impl Socks5Redaer {
     pub fn new(read_half: OwnedReadHalf) -> Self {
-        Self { read_half, buffer: vec![0u8; 32 * 1024].into_boxed_slice() }
+        Self {
+            read_half,
+            buffer: vec![0u8; 32 * 1024],
+        }
     }
 }
 
@@ -154,7 +163,9 @@ impl Socks5Redaer {
 impl ProxyReader for Socks5Redaer {
     async fn read(&mut self) -> io::Result<&mut [u8]> {
         let read_size = self.read_half.read(&mut self.buffer).await?;
-        if read_size == 0 { return Err(Error::new(ErrorKind::InvalidInput, "Socks5 read size is 0.")); }
+        if read_size == 0 {
+            return Err(Error::new(ErrorKind::InvalidInput, "Socks5 read size is 0."));
+        }
         Ok(&mut self.buffer[..read_size])
     }
 
@@ -183,4 +194,3 @@ impl ProxyWriter for Socks5Writer {
         self.write_half.shutdown().await
     }
 }
-

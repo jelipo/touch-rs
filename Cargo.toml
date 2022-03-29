@@ -25,13 +25,13 @@ anyhow = "1.0"
 
 ring = "0.16.20"
 
-trust-dns-resolver = "0.20.3"
+trust-dns-resolver = "0.21"
 futures = "0.3"
-tokio = { version = "1.9", features = ["full"] }
-fantasy-util = "0.1"
-bytes = "1.0"
+tokio = { version = "1.17", features = ["full"] }
+fantasy-util = "0.1.8"
+bytes = "1.1"
 
-hkdf = "0.11"
-sha-1 = "0.9"
-md-5 = "0.9"
+hkdf = "0.12"
+sha-1 = "0.10"
+md-5 = "0.10"
 rand = "0.8"

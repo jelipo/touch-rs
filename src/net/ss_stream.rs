@@ -1,4 +1,4 @@
-use std::borrow::Borrow;
+use std::borrow::{Borrow, BorrowMut};
 use std::io;
 use std::io::{Error, ErrorKind};
 use std::net::SocketAddr;
@@ -23,7 +23,7 @@ pub struct SsStreamReader {
     aead_type: AeadType,
     ss_aead: Option<SsAead>,
     ss_len_buf: [u8; 18],
-    ss_data_buf: Box<[u8]>,
+    ss_data_buf: Vec<u8>,
 }
 
 impl SsStreamReader {
@@ -34,7 +34,7 @@ impl SsStreamReader {
             aead_type,
             ss_aead: None,
             ss_len_buf: [0u8; 18],
-            ss_data_buf: vec![0u8; 1024 * 32].into_boxed_slice(),
+            ss_data_buf: vec![0u8; 1024 * 32],
         }
     }
 }
@@ -56,7 +56,7 @@ impl ProxyReader for SsStreamReader {
         let en_data_len = u16::from_be_bytes([len_vec[0], len_vec[1]]) as usize;
         // Automatic capacity expansion
         if en_data_len > self.ss_data_buf.len() {
-            self.ss_data_buf = vec![0u8; en_data_len].into_boxed_slice()
+            self.ss_data_buf = vec![0u8; en_data_len]
         }
         let buf = self.ss_data_buf[..(en_data_len + 16) as usize].as_mut();
         self.read_half.read_exact(buf).await?;
@@ -70,12 +70,12 @@ impl ProxyReader for SsStreamReader {
 
 /// Read slat from TCP , and initialize a Shadowsocks AEAD.
 async fn read_slat_to_aead(aead_type: &AeadType, readhalf: &mut OwnedReadHalf, password: &[u8]) -> io::Result<SsAead> {
-    let mut salt: Box<[u8]> = match aead_type {
-        AeadType::AES128GCM => [0u8; 16].into(),
-        AeadType::AES256GCM | AeadType::Chacha20Poly1305 => [0u8; 32].into()
+    let mut salt = match aead_type {
+        AeadType::AES128GCM => vec![0u8; 16],
+        AeadType::AES256GCM | AeadType::Chacha20Poly1305 => vec![0u8; 32],
     };
     readhalf.read_exact(&mut salt).await?;
-    SsAead::new(salt.into(), password, aead_type).or_else(|e| { Err(change_error(e)) })
+    SsAead::new(salt, password, aead_type).map_err(change_error)
 }
 
 pub struct SsStreamWriter {
@@ -168,10 +168,10 @@ pub struct SsOutProxy {
 impl SsOutProxy {
     pub fn new(ss_addr: String, ss_port: u16, password: String, aead_type: &AeadType) -> Self {
         Self {
-            ss_addr: ss_addr.to_string(),
+            ss_addr,
             ss_port,
-            password: password.to_string(),
-            aead_type: (*aead_type).clone(),
+            password,
+            aead_type: (*aead_type),
         }
     }
 }
@@ -182,7 +182,7 @@ impl OutputProxy for SsOutProxy {
             ss_addr: self.ss_addr.clone(),
             ss_port: self.ss_port,
             password: self.password.clone(),
-            aead_type: self.aead_type.clone(),
+            aead_type: self.aead_type,
         }))
     }
 }
@@ -196,15 +196,13 @@ pub struct SsOutProxyStarter {
 
 #[async_trait]
 impl OutProxyStarter for SsOutProxyStarter {
-    async fn new_connection(&mut self, proxy_info: ProxyInfo) ->
-    io::Result<(Box<dyn ProxyReader>, Box<dyn ProxyWriter>)> {
+    async fn new_connection(&mut self, proxy_info: ProxyInfo) -> io::Result<(Box<dyn ProxyReader>, Box<dyn ProxyWriter>)> {
         debug!("new connect");
         let addr = format!("{}:{}", self.ss_addr, self.ss_port);
         let output_stream = TcpStream::connect(addr).await?;
         // Creat a random salt
         let write_salt = gen_random_salt(&self.aead_type);
-        let write_ss_aead = SsAead::new(write_salt, self.password.as_bytes(), &self.aead_type)
-            .or_else(|e| { Err(change_error(e)) })?;
+        let write_ss_aead = SsAead::new(write_salt, self.password.as_bytes(), &self.aead_type).map_err(change_error)?;
         let (read_half, write_half) = output_stream.into_split();
 
         let reader = SsStreamReader::new(read_half, self.password.as_str(), self.aead_type);
@@ -224,20 +222,19 @@ pub struct SsInputProxy {
 }
 
 impl SsInputProxy {
-    pub async fn new(
-        aead_type: AeadType,
-        passive: &BasePassiveConfig,
-        out_proxy: Box<dyn OutputProxy>,
-    ) -> io::Result<Self> {
+    pub async fn new(aead_type: AeadType, passive: &BasePassiveConfig, out_proxy: Box<dyn OutputProxy>) -> io::Result<Self> {
         let addr_str = format!("{}:{}", &passive.local_host, passive.local_port);
-        let addr = SocketAddr::from_str(addr_str.as_str()).or(
-            Err(Error::new(ErrorKind::InvalidInput, "Error address"))
-        );
+        let addr = SocketAddr::from_str(addr_str.as_str()).map_err(|_| Error::new(ErrorKind::InvalidInput, "Error address"));
         let tcp_listener = TcpListener::bind(addr?).await?;
         info!("Shadowsocks ({:?}) bind in {}", aead_type, addr_str);
-        let password = passive.password.clone()
-            .ok_or(Error::new(ErrorKind::InvalidInput, "Shadowsocks must have a password"))?;
-        Ok(Self { tcp_listener, password, out_proxy, aead_type })
+        let password =
+            passive.password.clone().ok_or_else(|| Error::new(ErrorKind::InvalidInput, "Shadowsocks must have a password"))?;
+        Ok(Self {
+            tcp_listener,
+            password,
+            out_proxy,
+            aead_type,
+        })
     }
 }
 
@@ -249,9 +246,9 @@ impl InputProxy for SsInputProxy {
             let (tcpstream, _addr) = self.tcp_listener.accept().await?;
             let starter = match self.out_proxy.gen_connector() {
                 Ok(n) => n,
-                Err(_) => continue
+                Err(_) => continue,
             };
-            let aead_type = self.aead_type.clone();
+            let aead_type = self.aead_type;
             let password = self.password.clone();
             tokio::task::spawn(async move {
                 if let Err(e) = new_ss_proxy(tcpstream, starter, aead_type, password).await {
@@ -262,25 +259,30 @@ impl InputProxy for SsInputProxy {
     }
 }
 
-async fn new_ss_proxy(tcpstream: TcpStream, mut starter: Box<dyn OutProxyStarter>,
-                      aead_type: AeadType, password: String) -> io::Result<()> {
-    let (readhalf, writehalf) = tcpstream.into_split();
-    let mut ss_reader = SsStreamReader::new(readhalf, password.as_str(), aead_type.clone());
+async fn new_ss_proxy(
+    tcpstream: TcpStream,
+    mut starter: Box<dyn OutProxyStarter>,
+    aead_type: AeadType,
+    password: String,
+) -> io::Result<()> {
+    let (read_half, write_half) = tcpstream.into_split();
+    let mut ss_reader = SsStreamReader::new(read_half, password.as_str(), aead_type);
     let write_slat = gen_random_salt(&aead_type);
-    let write_aead = SsAead::new(write_slat, password.as_bytes(), &aead_type).or_else(
-        |e| { Err(change_error(e)) })?;
-    let ss_writer = SsStreamWriter::creat_without_info(writehalf, write_aead);
+    let write_aead = SsAead::new(write_slat, password.as_bytes(), &aead_type).map_err(change_error)?;
+    let ss_writer = SsStreamWriter::creat_without_info(write_half, write_aead);
 
     let first_read_data = ss_reader.read().await?;
     let (info, read_addr_size) = Socks5::read_to_socket_addrs(first_read_data);
     let (mut out_reader, mut out_writer) = starter.new_connection(info).await?;
 
-    let reader = ss_input_write(ss_writer, &mut out_reader);
+    let reader = ss_input_write(ss_writer, &mut *out_reader);
     let size = first_read_data.len();
-    let first_write: Option<Box<[u8]>> = if size == read_addr_size { None } else {
+    let first_write: Option<Box<[u8]>> = if size == read_addr_size {
+        None
+    } else {
         Some(first_read_data[read_addr_size..].into())
     };
-    let writer = ss_input_read(ss_reader, &mut out_writer, first_write);
+    let writer = ss_input_read(ss_reader, &mut *out_writer, first_write);
     // Wait for two futures done.
     tokio::select! {
         _ = reader => {}
@@ -292,28 +294,46 @@ async fn new_ss_proxy(tcpstream: TcpStream, mut starter: Box<dyn OutProxyStarter
 }
 
 async fn ss_input_read(
-    mut ss_reader: SsStreamReader, out_writer: &mut Box<dyn ProxyWriter>, first_write: Option<Box<[u8]>>,
+    mut ss_reader: SsStreamReader,
+    out_writer: &mut dyn ProxyWriter,
+    first_write: Option<Box<[u8]>>,
 ) -> usize {
     let mut total = 0;
     if let Some(mut data) = first_write {
-        if out_writer.write(data.as_mut()).await.is_err() { return 0; } else { total = data.len() }
+        if out_writer.write(data.as_mut()).await.is_err() {
+            return 0;
+        } else {
+            total = data.len()
+        }
     }
     while let Ok(data) = ss_reader.read().await {
         let size = data.len();
-        if size == 0 { break; } else { total = total + size; }
-        if out_writer.write(data.as_mut()).await.is_err() { break; }
+        if size == 0 {
+            break;
+        } else {
+            total += size;
+        }
+        if out_writer.write(data.as_mut()).await.is_err() {
+            break;
+        }
     }
     let _read_result = ss_reader.shutdown().await;
     let _write_result = out_writer.shutdown().await;
     total
 }
 
-async fn ss_input_write(mut input_write: SsStreamWriter, out_reader: &mut Box<dyn ProxyReader>) -> usize {
+async fn ss_input_write(mut input_write: SsStreamWriter, out_reader: &mut dyn ProxyReader) -> usize {
     let mut total = 0;
     while let Ok(data) = out_reader.read().await {
         let size = data.len();
-        if size == 0 { break; } else { total = total + size; }
-        if input_write.write(data.as_mut()).await.is_err() { break; };
+        if size == 0 {
+            break;
+        } else {
+            total += size;
+        }
+        if input_write.write(data.as_mut()).await.is_err() {
+            break;
+        };
     }
     let _read_result = input_write.shutdown().await;
     let _write_result = out_reader.shutdown().await;
@@ -323,9 +343,9 @@ async fn ss_input_write(mut input_write: SsStreamWriter, out_reader: &mut Box<dy
 //<--<--<--<--<--<--<--<--<--<--<--<--SS_INPUT_PROXY--<--<--<--<--<--<--<--<--<--<--<--<
 
 /// Generate a Shadowsocks salt
-fn gen_random_salt(aead_type: &AeadType) -> Box<[u8]> {
+fn gen_random_salt(aead_type: &AeadType) -> Vec<u8> {
     match aead_type {
         AeadType::AES128GCM => rand::random::<[u8; 16]>().into(),
-        AeadType::AES256GCM | AeadType::Chacha20Poly1305 => rand::random::<[u8; 32]>().into()
+        AeadType::AES256GCM | AeadType::Chacha20Poly1305 => rand::random::<[u8; 32]>().into(),
     }
 }

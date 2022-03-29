@@ -1,16 +1,14 @@
 use std::io;
 use std::path::Path;
 
-use bytes::BufMut;
-
 use crate::core::config::ConfigReader;
 use crate::core::selector::ProtocolSelector;
 
-mod socks;
-mod ss;
+mod core;
 mod encrypt;
 mod net;
-mod core;
+mod socks;
+mod ss;
 mod util;
 
 #[tokio::main]

@@ -47,7 +47,6 @@ use crate::net::AddressType;
 //     }
 // }
 
-
 impl AddressType {
     pub fn with_byte(address_type: u8) -> io::Result<AddressType> {
         match address_type {

@@ -1,8 +1,8 @@
 use ring::error::Unspecified;
 
-pub mod ss;
 pub mod aead;
 pub mod error;
+pub mod ss;
 
 pub struct Nonce {
     base_arr: [u8; 12],
@@ -31,7 +31,12 @@ impl Nonce {
         }
     }
 
-    pub fn new() -> Self { Nonce { base_arr: [0u8; 12], first: true } }
+    pub fn new() -> Self {
+        Nonce {
+            base_arr: [0u8; 12],
+            first: true,
+        }
+    }
 }
 
 impl ring::aead::NonceSequence for Nonce {

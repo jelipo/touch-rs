@@ -1,8 +1,7 @@
-use std::borrow::{BorrowMut, Borrow};
+use std::borrow::{Borrow, BorrowMut};
 use std::io;
 use std::io::Error;
-use std::net::{SocketAddr, IpAddr};
-use std::rc::Rc;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, ErrorKind};
@@ -13,11 +12,9 @@ use crate::net::AddressType;
 use crate::net::dns::DnsClient;
 use crate::net::proxy::{OutProxyStarter, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
 use crate::util::address::Address;
-use std::sync::Arc;
-use std::ops::Deref;
 
 pub struct RawActive {
-    dns: Arc<Option<DnsClient>>
+    dns: Arc<Option<DnsClient>>,
 }
 
 /// Send raw data to dest server
@@ -36,19 +33,18 @@ impl OutputProxy for RawActive {
 }
 
 pub struct RawOutProxyStarter {
-    dns: Arc<Option<DnsClient>>
+    dns: Arc<Option<DnsClient>>,
 }
 
 #[async_trait]
 impl OutProxyStarter for RawOutProxyStarter {
-    async fn new_connection(&mut self, proxy_info: ProxyInfo) ->
-    io::Result<(Box<dyn ProxyReader>, Box<dyn ProxyWriter>)> {
+    async fn new_connection(&mut self, proxy_info: ProxyInfo) -> io::Result<(Box<dyn ProxyReader>, Box<dyn ProxyWriter>)> {
         let tcpstream = if proxy_info.address_type == AddressType::Domain {
             let domain_str = String::from_utf8_lossy(&proxy_info.address);
             if let Some(client) = self.dns.borrow() {
                 // Query domain IP address
-                let ip_addr = client.query(&proxy_info.address).await
-                    .ok_or(Error::new(ErrorKind::InvalidInput, "Unknow host"))?;
+                let ip_addr =
+                    client.query(&proxy_info.address).await.ok_or_else(|| Error::new(ErrorKind::InvalidInput, "Unknow host"))?;
                 TcpStream::connect((ip_addr, proxy_info.port)).await?
             } else {
                 let address = format!("{}:{}", domain_str, proxy_info.port);
@@ -66,19 +62,22 @@ impl OutProxyStarter for RawOutProxyStarter {
 
 pub struct RawProxyReader {
     read_half: OwnedReadHalf,
-    buf: Box<[u8]>,
+    buf: Vec<u8>,
 }
 
 impl RawProxyReader {
     pub fn new(read_half: OwnedReadHalf) -> Self {
-        Self { read_half, buf: vec![0u8; 32 * 1024].into_boxed_slice() }
+        Self {
+            read_half,
+            buf: vec![0u8; 32 * 1024],
+        }
     }
 }
 
 #[async_trait]
 impl ProxyReader for RawProxyReader {
     async fn read(&mut self) -> io::Result<&mut [u8]> {
-        let size = self.read_half.read(self.buf.borrow_mut()).await?;
+        let size = self.read_half.read(&mut self.buf).await?;
         Ok(&mut self.buf[..size])
     }
 
@@ -88,7 +87,7 @@ impl ProxyReader for RawProxyReader {
 }
 
 pub struct RawProxyWriter {
-    write_half: OwnedWriteHalf
+    write_half: OwnedWriteHalf,
 }
 
 impl RawProxyWriter {

@@ -59,7 +59,7 @@ pub enum ProtocalType {
     #[serde(alias = "chacha20poly1305")]
     Chacha20Poly1305,
     #[serde(alias = "raw")]
-    RAW,
+    Raw,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

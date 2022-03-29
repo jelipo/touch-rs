@@ -5,8 +5,6 @@ use tokio::net::TcpStream;
 
 use crate::net::AddressType;
 use crate::net::proxy::ProxyInfo;
-use std::borrow::{BorrowMut, Borrow};
-use std::slice::SliceIndex;
 
 /// Socks5 协议
 pub struct Socks5Server<'a> {
@@ -68,16 +66,16 @@ impl<'a> Socks5Server<'a> {
     }
 
     /// 从TCP流中读取4个字节并返回
-    async fn read_ipv4_address(&mut self) -> Result<Box<Vec<u8>>> {
-        let mut ip_arr = Box::new(vec![0u8; 4]);
+    async fn read_ipv4_address(&mut self) -> Result<Vec<u8>> {
+        let mut ip_arr = vec![0u8; 4];
         self.tcp_stream.read_exact(ip_arr.as_mut()).await?;
         Ok(ip_arr)
     }
 
     /// 从TCP流中读取域名版的地址
-    async fn read_domain_address(&mut self) -> Result<Box<Vec<u8>>> {
+    async fn read_domain_address(&mut self) -> Result<Vec<u8>> {
         let length = self.tcp_stream.read_u8().await?;
-        let mut domain_addr = Box::new(vec![0u8; length as usize]);
+        let mut domain_addr = vec![0u8; length as usize];
         self.tcp_stream.read_exact(domain_addr.as_mut()).await?;
         Ok(domain_addr)
     }

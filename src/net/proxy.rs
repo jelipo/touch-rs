@@ -1,5 +1,4 @@
 use std::io;
-use std::net::ToSocketAddrs;
 
 use async_trait::async_trait;
 
@@ -11,7 +10,6 @@ pub trait InputProxy {
     async fn start(&mut self) -> io::Result<()>;
 }
 
-
 pub trait OutputProxy: Send {
     /// Creat a new output proxy connector.
     fn gen_connector(&mut self) -> io::Result<Box<dyn OutProxyStarter>>;
@@ -20,8 +18,7 @@ pub trait OutputProxy: Send {
 #[async_trait]
 pub trait OutProxyStarter: Send {
     /// Creat a new OUT_PROXY connection.
-    async fn new_connection(&mut self, proxy_info: ProxyInfo) ->
-    io::Result<(Box<dyn ProxyReader>, Box<dyn ProxyWriter>)>;
+    async fn new_connection(&mut self, proxy_info: ProxyInfo) -> io::Result<(Box<dyn ProxyReader>, Box<dyn ProxyWriter>)>;
 }
 
 #[async_trait]
@@ -38,10 +35,9 @@ pub trait ProxyWriter: Send {
     async fn shutdown(&mut self) -> io::Result<()>;
 }
 
-
 #[derive(Clone, Debug)]
 pub struct ProxyInfo {
     pub address_type: AddressType,
-    pub address: Box<Vec<u8>>,
+    pub address: Vec<u8>,
     pub port: u16,
 }

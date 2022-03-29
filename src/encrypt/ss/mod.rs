@@ -30,9 +30,9 @@ pub fn openssl_bytes_to_key(password: &[u8], key_buffer: &mut [u8]) {
 
 const SS_SUBKEY_STR: &[u8] = b"ss-subkey";
 
-fn generate_subkey(salt_arr: &[u8], master_key: &[u8]) -> Result<Box<[u8]>> {
+fn generate_subkey(salt_arr: &[u8], master_key: &[u8]) -> Result<Vec<u8>> {
     let hkdf = Hkdf::<Sha1>::new(Some(salt_arr), master_key);
     let mut subkey = vec![0u8; salt_arr.len()];
     hkdf.expand(SS_SUBKEY_STR, &mut subkey).unwrap();
-    Ok(subkey.into_boxed_slice())
+    Ok(subkey)
 }
