@@ -1,13 +1,12 @@
 use std::io;
 use std::io::Error;
 use std::io::ErrorKind;
-use std::net::{AddrParseError, IpAddr, SocketAddr};
+use std::net::{IpAddr, SocketAddr};
 use std::ops::Deref;
 use std::str::FromStr;
 
 use trust_dns_resolver::config::{NameServerConfig, ResolverConfig, ResolverOpts};
-use trust_dns_resolver::proto::serialize::binary::BinDecodable;
-use trust_dns_resolver::{Name, TokioAsyncResolver};
+use trust_dns_resolver::TokioAsyncResolver;
 
 #[derive(Clone)]
 pub struct DnsClient {
@@ -38,11 +37,11 @@ impl DnsClient {
     /// Query IP of the domain name.
     pub async fn query(&self, domain: &[u8]) -> Option<IpAddr> {
         let addr_str = String::from_utf8_lossy(domain);
-        match IpAddr::from_str(addr_str.deref()) {
+        let addr_def = addr_str.deref();
+        match IpAddr::from_str(addr_def) {
             Ok(addr) => Some(addr),
             Err(_) => {
-                let name = Name::from_bytes(domain).ok()?;
-                let response = self.resolver.lookup_ip(name).await.ok()?;
+                let response = self.resolver.lookup_ip(addr_def).await.ok()?;
                 response.iter().next()
             }
         }
