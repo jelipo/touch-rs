@@ -1,5 +1,3 @@
-use std::borrow::Borrow;
-
 use crate::encrypt::aead::{AeadEncryptRing, AeadType, AEAD_TAG_SIZE};
 use crate::encrypt::error::Result;
 use crate::encrypt::ss::{generate_subkey, openssl_bytes_to_key};

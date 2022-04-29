@@ -3,8 +3,8 @@ use std::io::{Error, ErrorKind, Result};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-use crate::net::AddressType;
 use crate::net::proxy::ProxyInfo;
+use crate::net::AddressType;
 
 /// Socks5 协议
 pub struct Socks5Server<'a> {

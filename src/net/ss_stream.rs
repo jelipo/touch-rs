@@ -1,4 +1,4 @@
-use std::borrow::{Borrow, BorrowMut};
+use std::borrow::Borrow;
 use std::io;
 use std::io::{Error, ErrorKind};
 use std::net::SocketAddr;
@@ -7,8 +7,8 @@ use std::str::FromStr;
 use async_trait::async_trait;
 use log::{debug, error, info};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
+use tokio::net::{TcpListener, TcpStream};
 
 use crate::core::profile::BasePassiveConfig;
 use crate::encrypt::aead::AeadType;
@@ -293,11 +293,7 @@ async fn new_ss_proxy(
     Ok(())
 }
 
-async fn ss_input_read(
-    mut ss_reader: SsStreamReader,
-    out_writer: &mut dyn ProxyWriter,
-    first_write: Option<Box<[u8]>>,
-) -> usize {
+async fn ss_input_read(mut ss_reader: SsStreamReader, out_writer: &mut dyn ProxyWriter, first_write: Option<Box<[u8]>>) -> usize {
     let mut total = 0;
     if let Some(mut data) = first_write {
         if out_writer.write(data.as_mut()).await.is_err() {

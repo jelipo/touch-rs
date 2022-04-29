@@ -1,4 +1,4 @@
-use std::borrow::{Borrow, BorrowMut};
+use std::borrow::Borrow;
 use std::io;
 use std::io::Error;
 use std::sync::Arc;
@@ -8,9 +8,9 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt, ErrorKind};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::TcpStream;
 
-use crate::net::AddressType;
 use crate::net::dns::DnsClient;
 use crate::net::proxy::{OutProxyStarter, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
+use crate::net::AddressType;
 use crate::util::address::Address;
 
 pub struct RawActive {
@@ -39,7 +39,7 @@ pub struct RawOutProxyStarter {
 #[async_trait]
 impl OutProxyStarter for RawOutProxyStarter {
     async fn new_connection(&mut self, proxy_info: ProxyInfo) -> io::Result<(Box<dyn ProxyReader>, Box<dyn ProxyWriter>)> {
-        let tcpstream = if proxy_info.address_type == AddressType::Domain {
+        let tcp_stream = if proxy_info.address_type == AddressType::Domain {
             let domain_str = String::from_utf8_lossy(&proxy_info.address);
             if let Some(client) = self.dns.borrow() {
                 // Query domain IP address
@@ -53,7 +53,7 @@ impl OutProxyStarter for RawOutProxyStarter {
         } else {
             Address::new_connect(&proxy_info.address, proxy_info.port, &proxy_info.address_type).await?
         };
-        let (read_half, write_half) = tcpstream.into_split();
+        let (read_half, write_half) = tcp_stream.into_split();
         let writer = RawProxyWriter::new(write_half);
         let reader = RawProxyReader::new(read_half);
         Ok((Box::new(reader), Box::new(writer)))

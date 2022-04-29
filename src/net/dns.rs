@@ -28,7 +28,7 @@ impl DnsClient {
             protocol: Default::default(),
             tls_dns_name: None,
             trust_nx_responses: false,
-            bind_addr: None
+            bind_addr: None,
         });
         let resolver = TokioAsyncResolver::tokio(config, ResolverOpts::default())?;
         Ok(Self { resolver })
