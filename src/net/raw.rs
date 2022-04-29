@@ -43,8 +43,8 @@ impl OutProxyStarter for RawOutProxyStarter {
             let domain_str = String::from_utf8_lossy(&proxy_info.address);
             if let Some(client) = self.dns.borrow() {
                 // Query domain IP address
-                let ip_addr =
-                    client.query(&proxy_info.address).await.ok_or_else(|| Error::new(ErrorKind::InvalidInput, "Unknow host"))?;
+                let ip_addr = client.query(&proxy_info.address).await
+                    .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "unknown host"))?;
                 TcpStream::connect((ip_addr, proxy_info.port)).await?
             } else {
                 let address = format!("{}:{}", domain_str, proxy_info.port);

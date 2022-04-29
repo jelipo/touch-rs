@@ -2,7 +2,7 @@
 name = "touch-rust"
 version = "0.1.0"
 authors = ["jelipo <me@jelipo.com>"]
-edition = "2018"
+edition = "2021"
 description = "Touch the 'Internet'."
 license = "MIT"
 homepage = "https://github.com/jelipo/touch-rust"

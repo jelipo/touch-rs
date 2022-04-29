@@ -1,7 +1,8 @@
 use std::io;
 use std::io::Error;
 use std::io::ErrorKind;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{AddrParseError, IpAddr, SocketAddr};
+use std::ops::Deref;
 use std::str::FromStr;
 
 use trust_dns_resolver::config::{NameServerConfig, ResolverConfig, ResolverOpts};
@@ -36,8 +37,14 @@ impl DnsClient {
 
     /// Query IP of the domain name.
     pub async fn query(&self, domain: &[u8]) -> Option<IpAddr> {
-        let name = Name::from_bytes(domain).ok()?;
-        let response = self.resolver.lookup_ip(name).await.ok()?;
-        response.iter().next()
+        let addr_str = String::from_utf8_lossy(domain);
+        match IpAddr::from_str(addr_str.deref()) {
+            Ok(addr) => Some(addr),
+            Err(_) => {
+                let name = Name::from_bytes(domain).ok()?;
+                let response = self.resolver.lookup_ip(name).await.ok()?;
+                response.iter().next()
+            }
+        }
     }
 }
