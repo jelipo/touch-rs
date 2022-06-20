@@ -6,8 +6,8 @@ use std::str::FromStr;
 use async_trait::async_trait;
 use log::{error, info};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 
 use crate::core::profile::{BaseActiveConfig, BasePassiveConfig};
 use crate::net::proxy::{InputProxy, OutProxyStarter, OutputProxy, ProxyInfo, ProxyReader, ProxyWriter};
@@ -61,13 +61,9 @@ async fn new_proxy(mut input_stream: TcpStream, mut starter: Box<dyn OutProxySta
     let (mut out_reader, mut out_writer) = starter.new_connection(info).await?;
 
     let (read_half, write_half) = input_stream.into_split();
-    let reader = write(write_half, &mut out_reader);
-    let writer = read(read_half, &mut out_writer);
+    let _reader = write(write_half, &mut out_reader);
+    let _writer = read(read_half, &mut out_writer);
     // Wait for two future done.
-    tokio::select! {
-        _ = reader => {}
-        _ = writer => {}
-    }
     // TODO Don't know TCP will be dropped.
     // let _sd_rs = input_stream.shutdown().await;
     Ok(())

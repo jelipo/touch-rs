@@ -27,7 +27,7 @@ ring = "0.16.20"
 
 trust-dns-resolver = "0.21"
 futures = "0.3"
-tokio = { version = "1.17", features = ["full"] }
+tokio = { version = "1.19", features = ["full"] }
 fantasy-util = "0.1.8"
 bytes = "1.1"
 
